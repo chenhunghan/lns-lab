@@ -1,9 +1,9 @@
 import {
   THREE, CSS2DObject, C, V, scene, camera, renderer, labelRenderer, controls, composer, tiltH, tiltV, resize, time,
   parts, pickables, allLabels, label, vm, vmInner, shell, shellMat, shellEdges, layers, core, clawd, ring, procs, gate,
-  gateScanMat, GATE, NIC, nic, VSOCK, vsock, SOCK, socks, plates, shelf, cli, setCliScreen, svc, vault, keyObj, cache,
+  gateScanMat, gateCtl, hostGroup, HOST_SCREEN_PIN, GATE, NIC, nic, VSOCK, vsock, SOCK, socks, plates, shelf, cli, setCliScreen, svc, vault, keyObj, cache,
   folder, disk, diskFill, gitfile, browser, nat, DEST, pipes, glow, vmLight, coreLight, SURF, VM, vmLabel, HOST_TOP,
-} from './world.js?v=4';
+} from './world.js?v=17';
 
 // ─────────────────────────────────────────────────────────────── small helpers
 const $ = s => document.querySelector(s);
@@ -141,7 +141,7 @@ const slot = {
   host: i => folder.position.clone().add(V(-0.95 + (i % 7) * 0.32, 0.42, 0.2 + Math.floor(i / 7) * 0.34)),
   ws: i => plates['p-ws'].position.clone().add(V(-0.85 + (i % 6) * 0.34, 0.24, -0.45 + Math.floor(i / 6) * 0.42)),
   data: i => plates['p-data'].position.clone().add(V(-0.85 + (i % 6) * 0.34, 0.24, -0.35 + Math.floor(i / 6) * 0.42)),
-  upper: i => V(1.25 + (i % 4) * 0.33, SURF + 0.2, 0.55 + Math.floor(i / 4) * 0.4),
+  upper: i => V(2.55 + (i % 3) * 0.3, SURF + 0.2, -0.3 + Math.floor(i / 3) * 0.38),
   tmp: i => plates['p-tmp'].position.clone().add(V(-0.2 + (i % 3) * 0.2, 0.24 + Math.floor(i / 3) * 0.05, 0)),
   fs: i => plates['p-fs'].position.clone().add(V(-0.9 + i * 0.4, 0.24, 0)),
   git: i => plates['p-git'].position.clone().add(V(-0.3 + i * 0.4, 0.24, 0)),
@@ -204,7 +204,7 @@ scene.add(cards);
 LAYERS.forEach((L, i) => {
   const g = new THREE.Group();
   const x = -7.2 + i * 2.4;
-  g.position.set(x, 8.6 + Math.abs(i - 3) * -0.25, -0.6);
+  g.position.set(x, 10.8 + Math.abs(i - 3) * -0.25, -0.6);
   const mat = new THREE.MeshStandardMaterial({color: '#131a28', emissive: new THREE.Color(L.color), emissiveIntensity: 0.35, roughness: 0.35, metalness: 0.3, transparent: true, opacity: 0.95});
   const m = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.5, 0.07), mat);
   const lines = new THREE.Group();
@@ -225,7 +225,7 @@ LAYERS.forEach((L, i) => {
   m.userData.card = L.k;
   pickables.push(m);
 });
-const precLabel = label('weakest  →  strongest', {kicker: 'merge precedence', color: C.pink, cls: 'sm', at: V(-7.9, 10.6, -0.6)});
+const precLabel = label('weakest  →  strongest', {kicker: 'merge precedence', color: C.pink, cls: 'sm', at: V(-7.9, 12.8, -0.6)});
 cards.visible = false;
 
 // Key held by the proxy once a connector is granted.
@@ -233,7 +233,7 @@ const gateKey = keyObj.clone();
 gateKey.scale.setScalar(1.1);
 gateKey.visible = false;
 scene.add(gateKey);
-const GATE_KEY_POS = V(GATE.x, SURF + 3.55, 0);
+const GATE_KEY_POS = V(GATE.x + 1.15, SURF + 3.1, GATE.z);
 
 // A second sandbox for the "volume in use" demo.
 const ghost = new THREE.Group();
@@ -558,14 +558,12 @@ async function relaunch(why, {pace} = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────── the network path
-const W2G = () => new THREE.CatmullRomCurve3([coreP.clone(), V(0.9, 3.75, 0.1), V(2.3, 3.4, 0), GATE.clone().add(V(-0.3, 0, 0))], false, 'catmullrom', 0.4);
-const G2N = () => new THREE.CatmullRomCurve3([GATE.clone(), V(3.9, 3.3, 0), NIC.clone()], false, 'catmullrom', 0.4);
+const HOLD_AT = () => GATE.clone().add(V(0, 0, -0.55));
+const W2G = () => new THREE.CatmullRomCurve3([coreP.clone(), V(GATE.x - 0.2, 3.55, 0.9), HOLD_AT()], false, 'catmullrom', 0.4);
+const G2N = () => new THREE.CatmullRomCurve3([HOLD_AT(), V(GATE.x, 3.3, GATE.z + 0.55), V(GATE.x + 0.9, 3.3, NIC.z), NIC.clone()], false, 'catmullrom', 0.3);
 let hopTimer;
 function hop(i) { S.hop = i; if (current.id === 'network') refreshPanel(); clearTimeout(hopTimer); if (i >= 0) hopTimer = setTimeout(() => { S.hop = -1; if (current.id === 'network') refreshPanel(); }, 6000); }
-function flashGate(color) {
-  gateScanMat.uniforms.uC.value.set(color);
-  gateScanMat.uniforms.uF.value = 1;
-}
+function flashGate(color) { gateCtl.signal(color); }
 let inflight = 0;
 async function request(k, {cmd, quiet = false} = {}) {
   const d = DEST[k];
@@ -588,7 +586,7 @@ async function request(k, {cmd, quiet = false} = {}) {
       p.color(C.amber).text(d.raw ? `RAW ${d.host}` : `held · ${d.host}`);
       p.hold = 1;
       clawd.mood('wait', 0).say('waiting for your answer…', {spin: true, dur: 90});
-      flashGate(C.amber);
+      gateCtl.signal(C.amber, true);
       const q = new Packet(C.amber, '', 0.6).at(GATE.clone().add(V(0, 1.2, 0)));
       q.path([VSOCK.clone().add(V(-0.45, 0.2, 0.1))], 0.6).then(async () => { await q.along(pipes.vs1024.curve, 0.8, 1, 0, 'vs1024'); q.die(); });
       let ans;
@@ -629,6 +627,7 @@ async function request(k, {cmd, quiet = false} = {}) {
     }
     flashGate(VCOL[v.verdict] || C.cyan);
     if (v.verdict === 'deny') {
+      gateCtl.refuse();
       p.color(C.red).text(d.raw ? 'refused' : '403 Forbidden');
       burst(p.pos.clone(), C.red);
       clawd.mood('ouch', 3).say(d.raw ? 'refused… no rule lets me in' : '403 — the policy said no', {dur: 3.2});
@@ -655,7 +654,10 @@ async function request(k, {cmd, quiet = false} = {}) {
     clawd.mood('think', 0).say(`allowed → ${d.host}`, {spin: true, dur: 90});
     stage([GATE, nat, d.pos.clone().add(V(0, d.h + 0.6, 0))], 4.4);
     hop(4);
+    gateCtl.raise();
+    await sleep(0.35);
     await p.along(G2N(), 0.45);
+    gateCtl.lower();
     hop(5);
     await p.along(pipes.net.curve, 0.55, 0, 1, 'net');
     hop(6);
@@ -667,7 +669,9 @@ async function request(k, {cmd, quiet = false} = {}) {
     stage(VMFOCUS(), 4.6);
     await p.along(pipes['to-' + k].curve, 0.7, 1, 0, 'to-' + k);
     await p.along(pipes.net.curve, 0.45, 1, 0, 'net');
-    await p.along(G2N(), 0.3, 1, 0);
+    gateCtl.raise();
+    await p.along(G2N(), 0.4, 1, 0);
+    gateCtl.lower();
     await p.along(W2G(), 0.6, 1, 0);
     burst(coreP.clone(), C.green, 0.8);
     p.die();
@@ -688,6 +692,7 @@ async function dnsLookup(host) {
   await p.along(W2G(), 0.8);
   const v = evaluate({host});
   if (v.verdict === 'deny') {
+    gateCtl.signal(C.red); gateCtl.refuse();
     p.color(C.red).text('NXDOMAIN'); burst(p.pos.clone(), C.red);
     fx(p.pos.clone().add(V(0, 0.6, 0)), 'denied names never resolve', C.red);
     await p.along(W2G(), 0.7, 1, 0); p.die();
@@ -707,10 +712,11 @@ async function bypass() {
   log(`<b>curl --noproxy '*' https://1.1.1.1</b> — try to skip the proxy`, C.orange);
   const p = new Packet(C.cyan, 'direct → 1.1.1.1:443').at(coreP.clone());
   clawd.turn(0.45).mood('think', 0).say('sneaking past the proxy…', {spin: true, dur: 30}).watch(p.g);
-  await p.to(V(2.2, 3.6, 0.9), 0.6);
+  await p.to(V(1.2, 3.6, 0.9), 0.6);
   p.text('nftables: redirect → :3129');
   burst(p.pos.clone(), C.cyan, 0.7);
   await p.to(GATE.clone().add(V(-0.3, 0, 0.2)), 0.5);
+  gateCtl.signal(C.red); gateCtl.refuse();
   p.color(C.red).text('no SNI → denied');
   burst(p.pos.clone(), C.red);
   fx(p.pos.clone().add(V(0, 0.6, 0)), 'there is no route around the proxy', C.red);
@@ -1147,7 +1153,7 @@ data   10Gi   ${S.vm === 'gone' ? '<span class="cm">—</span>' : 'agent' + (S.v
 
 // ─────────────────────────────────────────────────────────────── chapters
 const CH = [
-  {id: 'overview', title: 'The whole machine', color: C.cyan, cam: [V(0.5, 33, 55), V(-1.2, -0.4, 2.2)],
+  {id: 'overview', title: 'The whole machine', color: C.cyan, cam: [V(1.5, 21, 56), V(-1.5, 4.2, -1)],
     labels: ['host', 'shell', 'workload', 'gate', 'service', 'folder'],
     lede: 'lns runs your agent, command or OCI image inside a <b>microVM</b> on your own machine. It gets a whole Linux computer, but it only sees what you mount in, and every connection it opens has to pass one gate.',
     body: `<p><b>Left</b>, your Mac. <b>Middle</b>, the <b class="c-cy">microVM</b>, with <b class="c-am">Claude Code</b> working inside and the <b class="c-cy">proxy gate</b> on its wall. <b>Right</b>, the internet. Each tower’s light is what the gate would do: <b class="c-gr">allow</b>, <b class="c-rd">deny</b> or <b class="c-gd">ask</b>.</p>
@@ -1211,7 +1217,7 @@ const CH = [
       [`owner: ${S.fsRoot ? 'root → workload' : 'workload → root'}`, '', toggleOwnerRoot, C.amber],
       [S.mix.prod ? 'drop --mixin prod-settings' : '<code>--mixin prod-settings</code>', '', () => toggleMixin('prod'), C.pink],
     ]},
-  {id: 'network', title: 'Network: one door out', color: C.cyan, cam: [V(9.5, 19, 33), V(9.5, 1.6, 1.4)],
+  {id: 'network', title: 'Network: one door out', color: C.cyan, cam: [V(6.5, 17, 34), V(6.2, 2.6, 1.6)],
     labels: ['gate', 'nic', 'nat', 'dest-*', 'browser'],
     lede: 'No route out skips the gate. Inside the guest, <b>nftables</b> sends every TCP connection to the supervisor’s <b class="c-cy">proxy</b> and every DNS query to its stub, and drops the rest.',
     body: `<p>The proxy reads the <b>host name</b>, from the <code>CONNECT</code> line, the TLS SNI, or the HTTP Host, and matches it against the rule table. An allowed connection is dialed <b>by the proxy</b>, out through <b class="c-gr">eth0</b> and the Mac’s NAT.</p>
@@ -1227,7 +1233,7 @@ const CH = [
       ['<code>psql db.internal:5432</code>', '', () => request('db', {cmd: 'psql -h db.internal'}), C.teal],
       ['open localhost:8642', '', inbound, C.pink],
     ]},
-  {id: 'policy', title: 'Policy: allow, deny, or ask', color: C.cyan, cam: [V(10, 15, 27), V(5.8, 2.4, 0.6)],
+  {id: 'policy', title: 'Policy: allow, deny, or ask', color: C.cyan, cam: [V(8, 14, 28), V(3.6, 3.0, 1.2)],
     labels: ['gate', 'dest-*'],
     lede: 'A rule only ever says <b class="c-gr">allow</b> or <b class="c-rd">deny</b>. <b class="c-am">Ask</b> is what happens when no rule matches: the request is <b>held</b> and a card appears. Your answers become this run’s own rules.',
     body: `<p>The host merges the rules from every source and pushes the table to the supervisor as a <b>policy frame</b> over vsock 1024. The <b>first matching rule wins</b>, and stronger sources come first, so the run’s <b class="c-am">decisions.yaml</b> is checked before anything you pulled.</p>
@@ -1253,7 +1259,7 @@ const CH = [
       ['<code>echo $GH_TOKEN</code>', '', () => term('connector', `<span class="pr">guest$</span> echo $GH_TOKEN\n${S.conn.granted ? '<span class="gd">ghp_LNSPLACEHOLDER000000000000</span> <span class="cm"># never the real one</span>' : '<span class="cm">(empty — nothing granted to this run)</span>'}`), C.gold],
       ['<code>forget</code>', '', forgetConnector, C.red],
     ]},
-  {id: 'mixin', title: 'Mixins: compose a sandbox', color: C.cyan, cam: [V(1.5, 15, 29), V(0, 5.4, -0.4)],
+  {id: 'mixin', title: 'Mixins: compose a sandbox', color: C.cyan, cam: [V(1.5, 18, 33), V(0, 7.2, -0.4)],
     labels: [],
     lede: 'A mixin is a capability you layer onto a sandbox: a toolchain, a provider, a set of approved hosts, a config directory. The sandbox stays neutral, and <b>each run</b> chooses its mixins.',
     body: `<p>Toggle a layer on the right. Mixins resolve when a run <b>launches</b>, so each change relaunches the run with a new <code>--mixin</code> line. Watch the tool shelf, the beacons and the merged view change.</p>
@@ -1450,7 +1456,7 @@ const BOOT_TOUR = [
   ['Start', 'Finally [[Claude Code|workload]] starts, without admin rights.', () => [core], 3],
 ];
 const TOUR = [
-  {ch: 'overview', say: 'The big dark [[platform|host]] stands for your computer.'},
+  {ch: 'overview', say: 'This giant [[laptop|host]] stands for your computer.'},
   {ch: 'overview', say: 'The [[glass box|shell]] on it is a sandbox: a small, separate computer called a microVM.', focus: () => VMBOX, r: 5},
   {ch: 'overview', say: 'Inside the box lives [[Claude Code|workload]], an AI agent we want to keep contained.', focus: () => [core], r: 3.4},
   {ch: 'overview', say: 'The [[gate|gate]] on the box’s wall is the only way out to the internet.', focus: () => [gate, nic], r: 3.6},
@@ -1483,7 +1489,8 @@ const capEl = $('#cap');
 
 // Pins: each [[term|part]] in a caption gets a number, and the same number points at the object in the scene.
 const PIN_ANCHOR = {
-  host: () => V(-16.2, 0.9, 7.6),
+  host: () => HOST_SCREEN_PIN.clone(),
+  gate: () => V(GATE.x + 1.15, SURF + 2.75, GATE.z),
   workload: () => core.position.clone().add(V(-1.25, 0.55, 0.2)),
   kernel: () => V(VM.w / 2 - 0.9, 1.05, VM.d / 2 - 0.2),
   image2: () => V(-VM.w / 2 + 0.7, 1.55, VM.d / 2 - 0.2),
@@ -1745,8 +1752,7 @@ function tick(dt) {
   svc.userData.rings.forEach((r, i) => { if (!booting) r.material.color.copy(col(C.cyan, 1.2 + 0.8 * Math.max(0, Math.sin(t * 2 - i * 0.8)))); });
   keyObj.rotation.y = t * 0.9; keyObj.position.y = 2.1 + Math.sin(t * 1.6) * 0.08;
   if (gateKey.visible) { gateKey.rotation.y = t * 1.3; gateKey.position.y = GATE_KEY_POS.y + Math.sin(t * 2) * 0.07; }
-  gateScanMat.uniforms.uF.value *= Math.pow(0.12, dt);
-  if (gateScanMat.uniforms.uF.value < 0.02) gateScanMat.uniforms.uC.value.lerp(new THREE.Color(C.cyan), 0.05);
+  gateCtl.update(dt, t);
   for (const p of Object.values(pipes)) {
     p.pulse *= Math.pow(0.2, dt);
     p.mat.uniforms.uA.value = p.pulse;

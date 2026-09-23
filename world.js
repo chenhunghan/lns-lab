@@ -12,7 +12,7 @@ import {VerticalTiltShiftShader} from 'three/addons/shaders/VerticalTiltShiftSha
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {makeClawd} from './clawd.js?v=4';
+import {makeClawd} from './clawd.js?v=14';
 
 export {THREE, CSS2DObject};
 export const C = {
@@ -203,27 +203,83 @@ export const allLabels = [];
   scene.add(grid);
 }
 
-// ─────────────────────────────────────────────────────────────── the host slab (your Mac)
+// ─────────────────────────────────────────────────────────────── the host: a giant open laptop (your Mac)
 export const HOST_TOP = 0.5;
+function desktopTex() {
+  return canvasTex(1600, 900, (g, W, H) => {
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#16203a'); bg.addColorStop(0.55, '#101628'); bg.addColorStop(1, '#1d1530');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const rg = g.createRadialGradient(W * 0.72, H * 0.3, 20, W * 0.72, H * 0.3, W * 0.6);
+    rg.addColorStop(0, '#3a5a9a55'); rg.addColorStop(1, '#0000');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#0b0f1acc'; g.fillRect(0, 0, W, 38);
+    g.font = '600 20px "Outfit", system-ui, sans-serif'; g.fillStyle = '#e8edf8';
+    ['lns', 'Sandboxes', 'Volumes', 'Connectors', 'Approvals'].forEach((t, i) => { g.font = (i ? '400 ' : '700 ') + '20px "Outfit", system-ui, sans-serif'; g.fillText(t, 28 + [0, 64, 190, 296, 424][i], 26); });
+    g.font = '500 19px "DM Mono", monospace'; g.fillStyle = '#c9d0e2'; g.fillText('00:42', W - 90, 26);
+    g.strokeStyle = '#7fe3ff'; g.lineWidth = 2.5; g.strokeRect(W - 140, 11, 17, 17); g.fillStyle = '#ffc857'; g.fillRect(W - 135, 16, 7, 7);
+    const win = (x, y, w, h, title) => {
+      g.fillStyle = '#0d1322f0'; g.beginPath(); g.roundRect(x, y, w, h, 12); g.fill();
+      g.strokeStyle = '#ffffff22'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#ffffff10'; g.beginPath(); g.roundRect(x, y, w, 44, [12, 12, 0, 0]); g.fill();
+      [0, 1, 2].forEach(i => { g.fillStyle = '#56627e'; g.beginPath(); g.arc(x + 24 + i * 22, y + 22, 7, 0, 7); g.fill(); });
+      g.fillStyle = '#dfe5f3'; g.font = '600 19px "Outfit", system-ui, sans-serif'; g.fillText(title, x + 100, y + 29);
+    };
+    win(110, 130, 620, 330, 'lns · Sandboxes');
+    [['agent', 'running', '#5ee89a'], ['reviewer', 'stopped', '#ffc857'], ['scratch', 'stopped', '#ffc857']].forEach(([n, s, c], i) => {
+      const y = 200 + i * 72;
+      g.fillStyle = i ? '#ffffff08' : '#7fe3ff18'; g.beginPath(); g.roundRect(134, y - 34, 572, 58, 8); g.fill();
+      g.fillStyle = c; g.beginPath(); g.arc(166, y - 5, 8, 0, 7); g.fill();
+      g.fillStyle = '#eef2fa'; g.font = '600 22px "Outfit", system-ui, sans-serif'; g.fillText(n, 190, y + 3);
+      g.fillStyle = '#9ea8c2'; g.font = '400 19px "DM Mono", monospace'; g.fillText(s, 560, y + 2);
+    });
+    win(820, 210, 560, 250, 'Terminal');
+    g.font = '400 20px "DM Mono", monospace';
+    [['$ lns run --mixin ./mixins/anthropic', '#5ee89a'], ['  Image:     node:22-slim', '#9ea8c2'], ['  Resources: 2 vCPU · 2 GiB', '#9ea8c2'], ['✓ running agent', '#7fe3ff']].forEach(([t, c], i) => { g.fillStyle = c; g.fillText(t, 846, 300 + i * 34); });
+    g.fillStyle = '#ffffff14'; g.beginPath(); g.roundRect(W / 2 - 330, H - 96, 660, 76, 20); g.fill();
+    ['#3a4560', '#46526e', '#3a4560', '#46526e', '#3a4560', '#46526e', '#3a4560'].forEach((c, i) => { g.fillStyle = c; g.globalAlpha = 0.9; g.beginPath(); g.roundRect(W / 2 - 300 + i * 88, H - 84, 56, 52, 12); g.fill(); });
+    g.globalAlpha = 1;
+  });
+}
+export const hostGroup = new THREE.Group();
+scene.add(hostGroup);
 {
-  const slab = new THREE.Mesh(new RoundedBoxGeometry(29, 1, 17, 4, 0.45), std('#212a3c', {roughness: 0.42, metalness: 0.3}));
+  const alu = std('#2c323d', {roughness: 0.38, metalness: 0.55});
+  const slab = new THREE.Mesh(new RoundedBoxGeometry(29, 1, 17, 4, 0.45), alu);
   slab.position.set(-4.5, 0, 0);
   slab.castShadow = slab.receiveShadow = true;
-  scene.add(slab);
-  const inset = new THREE.Mesh(new RoundedBoxGeometry(28.2, 0.04, 16.2, 2, 0.02), std('#1c2536', {roughness: 0.62, metalness: 0.1}));
+  const inset = new THREE.Mesh(new RoundedBoxGeometry(28.2, 0.04, 16.2, 2, 0.02), std('#232935', {roughness: 0.6, metalness: 0.2}));
   inset.position.set(-4.5, 0.51, 0);
   inset.receiveShadow = true;
-  scene.add(inset);
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(29.02, 0.05, 17.02), glow('#39507a', 0.9));
-  strip.position.set(-4.5, 0.26, 0);
-  scene.add(strip);
-  part('host', slab, {title: 'Your Mac — the host', kicker: 'host', color: C.white, chapter: 'overview',
-    text: 'Everything here runs locally. The host keeps the CLI, the lns-service background service, your project, named volumes, caches and connector secrets. The workload lives only inside the glass microVM.'});
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.08, 0.3), std('#1b2029', {metalness: 0.4}));
+  lip.position.set(-4.5, 0.2, 8.5);
+  const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 26, 24), std('#20252e', {metalness: 0.7, roughness: 0.3}));
+  hinge.rotation.z = Math.PI / 2;
+  hinge.position.set(-4.5, 0.35, -8.35);
+  const tilt = 0.2, SH = 16.8, SW = 28.8;
+  const screen = new THREE.Group();
+  screen.position.set(-4.5, 0.35, -8.45);
+  screen.rotation.x = -tilt;
+  const lid = new THREE.Mesh(new RoundedBoxGeometry(SW, SH, 0.36, 3, 0.4), alu);
+  lid.position.y = SH / 2;
+  lid.castShadow = true;
+  const glass = new THREE.Mesh(new RoundedBoxGeometry(SW - 0.5, SH - 0.5, 0.02, 2, 0.3), std('#07090f', {roughness: 0.15, metalness: 0.2}));
+  glass.position.set(0, SH / 2, 0.19);
+  const display = new THREE.Mesh(new THREE.PlaneGeometry(SW - 1.3, (SW - 1.3) * 9 / 16), new THREE.MeshBasicMaterial({map: desktopTex(), color: new THREE.Color(0.95, 0.95, 0.95)}));
+  display.position.set(0, SH / 2 - 0.1, 0.205);
+  const cam = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), glow('#2a3a55', 1));
+  cam.position.set(0, SH - 0.28, 0.21);
+  screen.add(lid, glass, display, cam);
+  hostGroup.add(slab, inset, lip, hinge, screen);
+  hostGroup.userData.screen = screen;
+  part('host', hostGroup, {title: 'Your Mac — the host', kicker: 'the computer everything runs on', color: C.white, chapter: 'overview',
+    text: 'The laptop is your computer. Everything runs locally on it: the lns CLI, the lns-service background service, your project, named volumes, caches and connector secrets. Claude Code lives only inside the glass box.'});
   label('your Mac · host', {kicker: 'macOS · Apple Silicon', color: C.white, at: V(-17.4, 0.6, 7.6), part: 'host'});
 }
+export const HOST_SCREEN_PIN = V(-15.5, 12.5, -10.6);
 
 // ─────────────────────────────────────────────────────────────── the microVM
-export const VM = {x: 0, z: 0, w: 9.6, h: 5.4, d: 6.8, floor: 0.8};
+export const VM = {x: 0, z: 0, w: 7.4, h: 7.4, d: 7.4, floor: 0.8};
 VM.top = VM.floor + VM.h; VM.cy = VM.floor + VM.h / 2;
 export const vm = new THREE.Group();
 scene.add(vm);
@@ -311,7 +367,7 @@ export const SURF = 1.86;   // top of the writable layer, where the workload's f
 
 // The workload — a little Claude Code — and the supervisor ring around it.
 export const core = new THREE.Group();
-core.position.set(-0.7, SURF + 0.72, 0.3);
+core.position.set(-0.3, SURF + 0.72, 0.3);
 vmInner.add(core);
 export const clawd = makeClawd(core);
 part('workload', core, {title: 'Claude Code — the workload', kicker: 'sh -c claude · uid 65534', color: C.orange, chapter: 'supervisor',
@@ -347,8 +403,8 @@ vmInner.add(ring);
 export const procs = {};
 {
   const defs = [
-    ['init', 'lns-init', 'PID 1', V(-3.6, 2.35, -2.5), 'Static-musl PID 1. Verifies the composefs descriptor, mounts the overlay root, volumes, binds (with excludes masked) and tmpfs, hides the boot token from /proc/cmdline, then chroots and execs the broker.'],
-    ['broker', 'session-broker', 'vsock 1029 · 1030', V(-2.2, 2.35, -2.5), 'Brings up eth0 with DHCP, owns PTYs, and serves sessions on vsock 1029 (the first is the run itself, later ones are lns exec). Port forwards arrive on vsock 1030. When the run ends it syncs, releases volumes and powers the VM off.'],
+    ['init', 'lns-init', 'PID 1', V(-2.85, 2.35, -2.95), 'Static-musl PID 1. Verifies the composefs descriptor, mounts the overlay root, volumes, binds (with excludes masked) and tmpfs, hides the boot token from /proc/cmdline, then chroots and execs the broker.'],
+    ['broker', 'session-broker', 'vsock 1029 · 1030', V(-1.85, 2.35, -2.95), 'Brings up eth0 with DHCP, owns PTYs, and serves sessions on vsock 1029 (the first is the run itself, later ones are lns exec). Port forwards arrive on vsock 1030. When the run ends it syncs, releases volumes and powers the VM off.'],
   ];
   const lm = new THREE.LineBasicMaterial({color: new THREE.Color(C.cyan).multiplyScalar(1.4), transparent: true, opacity: 0.55, toneMapped: false});
   let prev = null;
@@ -371,51 +427,70 @@ export const procs = {};
   vmInner.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([prev, V(-1.6, 3.0, -0.7), V(core.position.x - 0.8, core.position.y, core.position.z - 0.9)]), lm));
 }
 
-// The proxy gate: nftables redirects every workload socket here. Lives inside the VM, owned by the supervisor.
-export const GATE = V(3.05, 3.3, 0);
+// The proxy gate: nftables redirects every workload socket here. Drawn as a checkpoint barrier across the lane.
+export const GATE = V(1.7, 3.3, 2.0);
 export const gate = new THREE.Group();
-gate.position.set(GATE.x, 0, 0);
+gate.position.set(GATE.x, 0, GATE.z);
 vmInner.add(gate);
-export const gateScanMat = new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-  uniforms: {uT: time, uC: {value: new THREE.Color(C.cyan)}, uF: {value: 0}},
-  vertexShader: `varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `uniform float uT; uniform vec3 uC; uniform float uF; varying vec2 vU;
-    void main(){
-      float s = smoothstep(.0,.04, abs(fract(vU.y*1. - uT*.35)-.5)*2.) ;
-      float lines = .5+.5*sin(vU.y*120.);
-      float hex = step(.92, fract(vU.x*14.)) + step(.92, fract(vU.y*18.));
-      float edge = smoothstep(.35,.5,abs(vU.x-.5)) + smoothstep(.4,.5,abs(vU.y-.5));
-      float band = 1.-smoothstep(0.,.06,abs(fract(vU.y - uT*.3)-.5));
-      float a = .05 + hex*.05 + band*.22 + edge*.12 + uF*.35;
-      gl_FragColor = vec4(uC*(1.+uF*2.), a*(.6+lines*.4));
-    }`,
-});
+const lampMat = new THREE.MeshBasicMaterial({color: new THREE.Color(C.cyan).multiplyScalar(2.6), toneMapped: false});
+const arm = new THREE.Group();
+export const gateCtl = {open: 0, target: 0, shake: 0, blink: false, color: new THREE.Color(C.cyan), flashT: 0};
 {
-  const pm = std('#1a2233', {metalness: 0.7, roughness: 0.28});
-  const H = 3.0, Z = 1.35, y0 = SURF;
-  for (const s of [-1, 1]) {
-    const p = new THREE.Mesh(new RoundedBoxGeometry(0.34, H, 0.34, 2, 0.08), pm);
-    p.position.set(0, y0 + H / 2, s * Z);
-    p.castShadow = true;
-    gate.add(p);
-    const st = new THREE.Mesh(new THREE.BoxGeometry(0.05, H - 0.4, 0.05), glow(C.cyan, 2.2));
-    st.position.set(-0.18, y0 + H / 2, s * Z);
-    gate.add(st);
-  }
-  const beam = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.34, Z * 2 + 0.34, 2, 0.08), pm);
-  beam.position.set(0, y0 + H + 0.1, 0);
-  beam.castShadow = true;
-  gate.add(beam);
-  const scan = new THREE.Mesh(new THREE.PlaneGeometry(Z * 2 - 0.3, H - 0.2), gateScanMat);
-  scan.rotation.y = Math.PI / 2;
-  scan.position.set(0, y0 + H / 2, 0);
-  gate.add(scan);
-  gate.userData.scan = scan;
-  part('gate', gate, {title: 'The proxy: where policy is enforced', kicker: 'lns-supervisor · :3128 :3129 · DNS :5355', color: C.cyan, chapter: 'network',
-    text: 'nftables sends every TCP connection the workload opens to the supervisor’s proxy (transparent :3129, or :3128 via HTTPS_PROXY) and every DNS query to its stub on :5355. The proxy reads the host name (SNI or CONNECT), matches it against the rule table the host pushed, and allows, denies or holds it for an approval card.'});
-  label('proxy gate', {kicker: 'nftables → :3128/:3129 · dns :5355', color: C.cyan, at: V(0, y0 + H + 0.35, 0), parent: gate, part: 'gate'});
+  const pm = std('#1d2536', {metalness: 0.7, roughness: 0.3});
+  const X0 = 1.15, armY = GATE.y - 0.05, L = 2.85;
+  const post = new THREE.Mesh(new RoundedBoxGeometry(0.55, armY - SURF + 0.55, 0.55, 2, 0.1), pm);
+  post.position.set(X0, SURF + (armY - SURF + 0.55) / 2, 0);
+  post.castShadow = true;
+  const band = new THREE.Mesh(new THREE.BoxGeometry(0.57, 0.06, 0.57), glow(C.cyan, 1.8));
+  band.position.set(X0, SURF + 0.35, 0);
+  const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.12, 20), pm);
+  lampBase.position.set(X0, armY + 0.61, 0);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 14), lampMat);
+  lamp.position.set(X0, armY + 0.8, 0);
+  const stripes = canvasTex(256, 16, (g, W, H) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#3fb6d6' : '#f4f8ff'; g.fillRect(i * W / 8, 0, W / 8, H); } });
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(L, 0.26, 0.2), new THREE.MeshStandardMaterial({map: stripes, roughness: 0.45, emissive: new THREE.Color('#ffffff'), emissiveMap: stripes, emissiveIntensity: 0.5}));
+  bar.position.x = -(L / 2 + 0.15);
+  bar.castShadow = true;
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), lampMat);
+  tip.position.x = -(L + 0.15);
+  const weight = new THREE.Mesh(new RoundedBoxGeometry(0.45, 0.3, 0.3, 2, 0.06), pm);
+  weight.position.x = 0.3;
+  arm.add(bar, tip, weight);
+  arm.position.set(X0, armY, 0);
+  const rest = new THREE.Mesh(new RoundedBoxGeometry(0.22, armY - SURF - 0.05, 0.22, 2, 0.05), pm);
+  rest.position.set(X0 - L - 0.15, SURF + (armY - SURF - 0.05) / 2, 0);
+  const fork = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.34), pm);
+  fork.position.set(X0 - L - 0.15, armY - 0.12, 0);
+  const laneMat = new THREE.MeshBasicMaterial({color: new THREE.Color(C.cyan).multiplyScalar(0.5), transparent: true, opacity: 0.16, depthWrite: false});
+  const laneIn = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 2.2), laneMat);
+  laneIn.rotation.x = -Math.PI / 2;
+  laneIn.position.set(0, SURF + 0.07, -0.25);
+  const laneOut = new THREE.Mesh(new THREE.PlaneGeometry(VM.w / 2 - GATE.x + 0.45, 0.9), laneMat);
+  laneOut.rotation.x = -Math.PI / 2;
+  laneOut.position.set((VM.w / 2 - GATE.x - 0.45) / 2, SURF + 0.07, 0.85);
+  const stop = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.12), new THREE.MeshBasicMaterial({color: new THREE.Color('#eef2fa').multiplyScalar(1.4), toneMapped: false, transparent: true, opacity: 0.7, depthWrite: false}));
+  stop.rotation.x = -Math.PI / 2;
+  stop.position.set(0, SURF + 0.08, -0.4);
+  gate.add(post, band, lampBase, lamp, arm, rest, fork, laneIn, laneOut, stop);
+  gate.userData.lamp = lamp;
+  gateCtl.update = (dt, t) => {
+    gateCtl.open += (gateCtl.target - gateCtl.open) * Math.min(1, dt * 6);
+    gateCtl.shake = Math.max(0, gateCtl.shake - dt * 1.6);
+    arm.rotation.z = -Math.PI / 2 * 0.92 * gateCtl.open + Math.sin(t * 38) * 0.06 * gateCtl.shake;
+    gateCtl.flashT = Math.max(0, gateCtl.flashT - dt * 0.7);
+    const on = gateCtl.blink ? (Math.sin(t * 9) > 0 ? 1 : 0.25) : 1;
+    lampMat.color.copy(gateCtl.color).multiplyScalar((1.6 + gateCtl.flashT * 2.2) * on);
+    if (!gateCtl.blink && gateCtl.flashT <= 0) gateCtl.color.lerp(new THREE.Color(C.cyan), Math.min(1, dt * 2));
+  };
+  gateCtl.signal = (hex, blink = false) => { gateCtl.color.set(hex); gateCtl.blink = blink; gateCtl.flashT = blink ? 0 : 1; };
+  gateCtl.raise = () => { gateCtl.target = 1; };
+  gateCtl.lower = () => { gateCtl.target = 0; };
+  gateCtl.refuse = () => { gateCtl.shake = 1; };
+  part('gate', gate, {title: 'The proxy gate', kicker: 'lns-supervisor · :3128 :3129 · DNS :5355', color: C.cyan, chapter: 'network',
+    text: 'A checkpoint on the only lane out. nftables sends every TCP connection the workload opens to the supervisor’s proxy (transparent :3129, or :3128 via HTTPS_PROXY) and every DNS query to its stub on :5355. The proxy reads the host name, checks it against the rules, and lifts the barrier, keeps it down, or holds the request and asks you.'});
+  label('proxy gate', {kicker: 'nftables → :3128/:3129 · dns :5355', color: C.cyan, at: V(X0, armY + 1.15, 0), parent: gate, part: 'gate'});
 }
+export const gateScanMat = {uniforms: {uF: {value: 0}, uC: {value: new THREE.Color()}}};
 
 // Ports in the VM walls: NIC (right), vsock (back), mount sockets (left).
 function port(size, color) {
@@ -426,7 +501,7 @@ function port(size, color) {
   g.userData.light = l;
   return g;
 }
-export const NIC = V(VM.w / 2, 3.3, 0);
+export const NIC = V(VM.w / 2, 3.3, 2.85);
 export const nic = port(V(0.36, 0.7, 1.0), C.cyan);
 nic.position.copy(NIC);
 vmInner.add(nic);
@@ -434,7 +509,7 @@ part('nic', nic, {title: 'eth0 · virtio-net', kicker: 'NAT’d by the Mac', col
   text: 'The guest’s one network card. On macOS it is attached to Virtualization.framework’s NAT, and the guest gets its address by DHCP. The only traffic that reaches it is traffic the proxy has already let through.'});
 label('eth0', {kicker: 'virtio-net', color: C.cyan, cls: 'sm', at: V(0.3, 0.55, 0), parent: nic, part: 'nic'});
 
-export const VSOCK = V(-2.6, 3.05, -VM.d / 2);
+export const VSOCK = V(-2.0, 3.05, -VM.d / 2);
 export const vsock = port(V(1.5, 0.62, 0.3), C.cyan);
 vsock.position.copy(VSOCK);
 vmInner.add(vsock);
@@ -467,20 +542,20 @@ function plate(key, pos, w, d, color, title, kicker, info) {
   label(title, {kicker, color, cls: 'sm mono', at: V(-w / 2 + 0.1, 0.12, d / 2), parent: g, part: key});
   return g;
 }
-plate('p-ws', V(-3.05, SURF + 0.04, -1.55), 2.3, 1.9, C.teal, '/workspace', 'bind · virtio-fs', {title: '/workspace ← bind “.”', kicker: 'bind · live · shared', color: C.teal, chapter: 'mounts',
+plate('p-ws', V(-2.35, SURF + 0.04, -1.3), 1.9, 1.6, C.teal, '/workspace', 'bind · virtio-fs', {title: '/workspace ← bind “.”', kicker: 'bind · live · shared', color: C.teal, chapter: 'mounts',
   text: 'Your project directory, shared live over virtio-fs (one share per bind, tag lns-bind-N). A write in the guest is a write to your folder, and an edit on your Mac is instantly visible inside.'});
-plate('p-data', V(-3.05, SURF + 0.04, 1.6), 2.3, 1.8, C.blue, '/opt/data', 'volume · /dev/vdc', {title: '/opt/data ← volume “data”', kicker: 'named volume · ext4 disk', color: C.blue, chapter: 'volumes',
+plate('p-data', V(-2.35, SURF + 0.04, 1.55), 1.9, 1.6, C.blue, '/opt/data', 'volume · /dev/vdc', {title: '/opt/data ← volume “data”', kicker: 'named volume · ext4 disk', color: C.blue, chapter: 'volumes',
   text: 'A named volume is an ext4 image (~/.lns/volumes/data.img) attached as a virtio block disk. It outlives every run, but only one sandbox may hold it at a time.'});
-plate('p-fs', V(0.9, SURF + 0.04, 2.35), 2.6, 1.3, C.lime, '/opt/app', 'fileset · inline', {title: '/opt/app ← fileset', kicker: 'fileset · seeded at boot', color: C.lime, chapter: 'filesets',
+plate('p-fs', V(1.85, SURF + 0.04, -1.25), 2.1, 1.0, C.lime, '/opt/app', 'fileset · inline', {title: '/opt/app ← fileset', kicker: 'fileset · seeded at boot', color: C.lime, chapter: 'filesets',
   text: 'Files the author shipped inside the artifact (inline text, or a directory packed into a layer at lns push), materialized into the runtime layer at launch. A snapshot, not a share.'});
-plate('p-git', V(0.9, SURF + 0.04, -2.45), 2.0, 1.0, C.lime, '/etc/gitconfig', 'fileset · hostPath', {title: '/etc/gitconfig ← hostPath ~/.gitconfig', kicker: 'fileset · one host file, copied once', color: C.lime, chapter: 'filesets',
+plate('p-git', V(1.85, SURF + 0.04, -2.65), 1.8, 0.9, C.lime, '/etc/gitconfig', 'fileset · hostPath', {title: '/etc/gitconfig ← hostPath ~/.gitconfig', kicker: 'fileset · one host file, copied once', color: C.lime, chapter: 'filesets',
   text: 'A hostPath fileset reads one file off the machine that runs the sandbox, once, at launch. Edit it in the guest and only the guest copy changes; edit it on the host and the guest never sees it until the next boot.'});
-plate('p-tmp', V(-0.7, SURF + 0.04, 2.55), 0.9, 0.8, C.grey, '/tmp', 'tmpfs', {title: '/tmp and /run', kicker: 'tmpfs · RAM', color: C.grey, chapter: 'volumes',
+plate('p-tmp', V(-0.95, SURF + 0.04, 2.8), 0.8, 0.7, C.grey, '/tmp', 'tmpfs', {title: '/tmp and /run', kicker: 'tmpfs · RAM', color: C.grey, chapter: 'volumes',
   text: 'Memory-backed. Gone whenever the VM powers off, even on lns stop / lns start.'});
 
 // Tool shelf (mixin chapter) — chips appear as tools are merged in.
 export const shelf = new THREE.Group();
-shelf.position.set(1.3, SURF + 0.05, -1.2);
+shelf.position.set(-0.45, SURF + 0.05, -2.85);
 vmInner.add(shelf);
 
 // ─────────────────────────────────────────────────────────────── host machinery
@@ -759,7 +834,7 @@ pipe('vs1030', [svcPort.clone().add(V(0, -0.35, 0)), V(-6.2, 2.6, -4.7), V(-2.6,
 pipe('vault', [at(vault, -0.9, 1.0, 0), at(vault, -1.9, 1.6, 0.3), at(svc, 0.5, 1.2, -0.95)], C.gold, {r: 0.05});
 pipe('ws', [at(folder, 1.15, 1.0, -0.2), V(-6.1, 2.6, -1.4), SOCK.ws.clone().add(V(-0.2, 0, 0))], C.teal, {r: 0.1});
 pipe('data', [at(disk, 0.95, 0.6, 0), V(-6.3, 2.4, 2.2), SOCK.data.clone().add(V(-0.2, 0, 0))], C.blue, {r: 0.1});
-pipe('content', [at(cache, 0.95, 0.9, 0.3), V(-10.4, 1.1, 5.0), V(-6.0, 1.1, 4.0), V(-4.8, 1.25, 2.9)], C.violet, {r: 0.06, base: 0.1});
+pipe('content', [at(cache, 0.95, 0.9, 0.3), V(-10.4, 1.1, 5.0), V(-6.0, 1.1, 4.0), V(-VM.w / 2, 1.25, 2.9)], C.violet, {r: 0.06, base: 0.1});
 pipe('port', [at(browser, -0.3, 1.3, -0.4), V(-7.2, 3.4, 1.4), at(svc, 0, 1.9, 0.95)], C.cyan, {r: 0.05, base: 0.08});
 pipe('net', [NIC.clone().add(V(0.2, 0, 0)), V(6.0, 2.6, 0), V(7.0, HOST_TOP + 0.7, 0)], C.cyan, {r: 0.09});
 for (const [k, d] of Object.entries(DEST)) {
