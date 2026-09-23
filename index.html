@@ -35,6 +35,7 @@
   --mono:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;height:100%;background:#070a12;overflow:hidden}
 button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
@@ -97,6 +98,8 @@ a{color:var(--cyan)}
 .c-cy{color:var(--cyan)!important}.c-gr{color:var(--green)!important}.c-rd{color:var(--red)!important}
 .c-gd{color:var(--gold)!important}.c-vi,.c-pk,.c-tl,.c-bl{color:#fff!important}.c-am{color:var(--orange)!important}
 .acts{display:flex;flex-wrap:wrap;gap:6px}
+.try{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:7px}
+.try-h{font:500 9.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
 .btn{border:1px solid var(--line2);background:#ffffff0a;border-radius:5px;height:30px;padding:0 11px;font-size:12.5px;font-weight:500;color:#e3e8f5;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;transition:background .15s,border-color .15s,transform .1s}
 .btn:hover{background:#ffffff1c;border-color:#ffffff40}
 .btn:active{transform:translateY(1px)}
@@ -241,6 +244,22 @@ a{color:var(--cyan)}
 #app.ui-off .side,#app.ui-off .rp,#app.ui-off .nav,#app.ui-off .log,#app.ui-off .ctl>:not(#uitog){opacity:0;visibility:hidden;pointer-events:none}
 #app.ui-off #labels{opacity:.0}
 #labels.demo .lb{opacity:.07!important;pointer-events:none}
+/* tour mode: the scene and one caption, nothing else */
+#app.touring .chap,#app.touring .rp,#app.touring .log{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .4s,visibility 0s .4s}
+.chap,.rp,.log{transition:opacity .4s}
+#app.touring .appr{right:22px}
+.cap{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);z-index:8;width:min(660px,calc(100% - 32px));padding:14px 18px 12px;display:flex;flex-direction:column;gap:10px}
+.cap.in{animation:capin .5s cubic-bezier(.2,.9,.3,1)}
+@keyframes capin{from{opacity:.2;transform:translate(-50%,6px)}}
+.cap-top{display:flex;justify-content:space-between;font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--cyan)}
+.cap-top span:last-child{color:var(--dim);letter-spacing:.06em}
+.cap p{margin:0;font-size:17px;line-height:1.5;color:#e9eef9;font-weight:400;text-wrap:pretty}
+.cap p b{color:#fff;font-weight:600}
+.cap p code{font-family:var(--mono);font-size:.86em;background:#ffffff10;border:1px solid #ffffff14;padding:0 5px;border-radius:3px}
+.cap-b{display:flex;gap:6px;justify-content:flex-end}
+.cap-b .btn{height:26px;font-size:11.5px;padding:0 10px}
+.cap-bar{height:2px;background:#ffffff12;overflow:hidden;margin:0 -18px -12px;border-radius:0 0 8px 8px}
+.cap-bar i{display:block;height:100%;background:var(--cyan);transform:scaleX(0);transform-origin:left;transition:transform .12s linear}
 .bubble{pointer-events:none;position:relative;padding:5px 9px;border-radius:5px;background:#f6f1ea;color:#2a1510;font:500 11px/1.3 var(--mono);white-space:nowrap;
   box-shadow:0 10px 24px -10px #000c;transform:translateY(-8px);transition:opacity .25s,transform .3s cubic-bezier(.2,1.4,.3,1)}
 .bubble::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-top-color:#f6f1ea;border-bottom:0}
@@ -272,6 +291,8 @@ dialog td:first-child{white-space:nowrap;color:#fff}
   .nav{left:8px;right:8px;transform:none;bottom:10px;overflow-x:auto}
   .step .t{display:none}.step{padding:0 10px}
   .appr{right:12px;left:12px;width:auto;top:auto;bottom:124px}
+  .cap{bottom:66px;padding:12px 14px 10px}.cap p{font-size:15px}.cap-bar{margin:0 -14px -10px}
+  #app.touring .side{max-height:none}
   .lb.sm{display:none}.lb i{display:none}.lb b{font-size:10.5px}
 }
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
@@ -291,8 +312,8 @@ dialog td:first-child{white-space:nowrap;color:#fff}
     <section class="card chap" id="chap" aria-live="polite">
       <div class="hd"><span class="no" id="c-no">01</span><h2 id="c-title">…</h2></div>
       <p class="lede" id="c-lede"></p>
-      <div class="acts" id="c-acts"></div>
       <div class="body" id="c-body"></div>
+      <div class="try"><span class="try-h">Try it</span><div class="acts" id="c-acts"></div></div>
     </section>
   </aside>
 
@@ -314,6 +335,17 @@ dialog td:first-child{white-space:nowrap;color:#fff}
   </nav>
 
   <div class="card log" id="log" aria-label="Audit timeline"></div>
+
+  <section class="card cap" id="cap" hidden aria-live="polite">
+    <div class="cap-top"><span id="cap-k">Tour</span><span id="cap-p"></span></div>
+    <p id="cap-t"></p>
+    <div class="cap-b">
+      <button class="btn" id="cap-pause">Pause</button>
+      <button class="btn" id="cap-next">Next ›</button>
+      <button class="btn" id="cap-exit">Explore on my own</button>
+    </div>
+    <div class="cap-bar"><i id="cap-bar"></i></div>
+  </section>
 
   <div class="appr" id="appr" role="alertdialog" aria-labelledby="appr-h">
     <div class="ah"><span class="lg"><i></i></span><span id="appr-kind">Approval · agent</span><span class="raw" id="appr-raw" hidden>RAW</span></div>
@@ -345,13 +377,13 @@ dialog td:first-child{white-space:nowrap;color:#fff}
       <tr><td>Right</td><td>The internet: destinations your workload might try to reach.</td></tr>
     </table>
     <h3>Controls</h3>
-    <p><kbd>1</kbd>…<kbd>9</kbd> jump to a chapter · <kbd>←</kbd> <kbd>→</kbd> previous / next · <kbd>T</kbd> auto tour · <kbd>L</kbd> labels · <kbd>M</kbd> miniature (tilt-shift) · <kbd>Space</kbd> pause · <kbd>R</kbd> reset the camera · <kbd>/</kbd> hide the interface · drag to orbit · right-drag to pan · scroll to zoom · hover anything for what it is · click a label to jump to its chapter.</p>
+    <p><kbd>1</kbd>…<kbd>9</kbd> jump to a chapter · <kbd>←</kbd> <kbd>→</kbd> previous / next · <kbd>T</kbd> start / stop the guided tour · <kbd>Esc</kbd> leave the tour · <kbd>L</kbd> labels · <kbd>M</kbd> miniature (tilt-shift) · <kbd>Space</kbd> pause · <kbd>R</kbd> reset the camera · <kbd>/</kbd> hide the interface · drag to orbit · right-drag to pan · scroll to zoom · hover anything for what it is · click a label to jump to its chapter.</p>
     <h3>Accuracy</h3>
     <p>The field names, commands and behaviour follow <b>lns 0.25</b> and its documentation. Every YAML shown here validates with <code>lns artifact validate</code>. Timings and sizes are shortened so you can watch them.</p>
     <p style="font-size:12px;color:#7d86a0">Built with three.js. Source: <a href="https://github.com/chenhunghan/lns-lab" target="_blank" rel="noopener">github.com/chenhunghan/lns-lab</a></p>
   </dialog>
 </div>
 
-<script type="module" src="./app.js?v=3"></script>
+<script type="module" src="./app.js?v=7"></script>
 </body>
 </html>

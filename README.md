@@ -18,7 +18,9 @@ The workload in the sandbox is a little **Claude Code**. Its eyes follow every p
 | 08 | Connectors | install → connect → grant; the placeholder in the guest, the real token injected by the proxy for one domain only |
 | 09 | Mixins | Toggle mixins and watch the merge (`lns inspect`), the tool shelf and the verdict beacons change |
 
-Keys: `1`–`9` chapters · `←` `→` · `T` tour · `L` labels · `M` miniature (tilt-shift) · `Space` pause · `R` reset camera · `/` hide UI · `?` help.
+The page opens with a **guided tour**: one caption at a time, with the boot shown step by step. Pause, skip, or press *Explore on my own* at any point. Then each chapter has **Try it** buttons for going deeper. A deep link such as `#policy` skips the tour and opens that chapter.
+
+Keys: `1`–`9` chapters · `←` `→` · `T` tour · `Esc` leave the tour · `L` labels · `M` miniature (tilt-shift) · `Space` pause · `R` reset camera · `/` hide UI · `?` help.
 
 ## Preview locally
 

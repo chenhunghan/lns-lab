@@ -3,7 +3,7 @@ import {
   parts, pickables, allLabels, label, vm, vmInner, shell, shellMat, shellEdges, layers, core, clawd, ring, procs, gate,
   gateScanMat, GATE, NIC, nic, VSOCK, vsock, SOCK, socks, plates, shelf, cli, setCliScreen, svc, vault, keyObj, cache,
   folder, disk, diskFill, gitfile, browser, nat, DEST, pipes, glow, vmLight, coreLight, SURF, VM, vmLabel, HOST_TOP,
-} from './world.js?v=3';
+} from './world.js?v=4';
 
 // ─────────────────────────────────────────────────────────────── small helpers
 const $ = s => document.querySelector(s);
@@ -346,7 +346,7 @@ function askCard({title, text, raw = false, kind = 'Approval · agent', buttons,
     requestAnimationFrame(() => { bar.style.transition = `transform ${timeout}s linear`; bar.style.transform = 'scaleX(0)'; });
     sec.textContent = left + 's';
     const iv = setInterval(() => { if (paused) return; left--; sec.textContent = left + 's'; if (left <= 0) finish('timeout'); }, 1000);
-    if (touring) setTimeout(() => finish((buttons && buttons[0][0]) || 'allow-always'), 2600);
+    if (touring) setTimeout(() => finish((buttons && buttons[0][0]) || 'allow-always'), 4200);
   });
   const p = cardQueue.then(run);
   cardQueue = p.catch(() => {});
@@ -387,11 +387,11 @@ const BOOT = [
   ['privilege drop', 'exec sh -c "claude" as uid 65534 (sandbox)', 'workload'],
 ];
 let booting = false;
-async function boot({fast = false, reason = 'lns run'} = {}) {
+async function boot({fast = false, reason = 'lns run', pace = null} = {}) {
   if (booting) return;
   booting = true;
   const T = fast ? 0.45 : 1;
-  const step = i => { S.boot = i; refreshPanel(); };
+  const step = async i => { S.boot = i; refreshPanel(); if (pace) await pace(i); };
   setState('booting');
   vmPieces().forEach(o => o.scale.setScalar(0.001));
   setVmPresence(0); setCore(0);
@@ -399,24 +399,24 @@ async function boot({fast = false, reason = 'lns run'} = {}) {
   vmInner.visible = true;
 
   stage([cli, svc, ...VMBOX]);
-  step(0);
+  await step(0);
   setCliScreen([['$ ' + reason, '#5ee89a'], ['  Image:     node:22-slim', '#9ea8c2'], ['  Volume:    data → /opt/data', '#9ea8c2'], ['  Resources: 2 vCPU · 2 GiB', '#9ea8c2'], ['  Ports:     127.0.0.1:8642 -> 8642', '#9ea8c2']]);
   log(`<b>${esc(reason)}</b> → lns-service`, C.green);
   const p0 = new Packet(C.green).at(pipes.cli.curve.getPointAt(0));
   await p0.along(pipes.cli.curve, 0.7 * T, 0, 1, 'cli'); p0.die();
 
-  step(1);
+  await step(1);
   pipes.content.pulse = 1;
   await Promise.all([tween(1.0 * T, k => svc.userData.rings.forEach((r, i) => r.material.color.copy(col(C.cyan, 1.5 + 2 * Math.max(0, Math.sin(k * 12 - i))))))]);
 
-  step(2);
+  await step(2);
   log('hypervisor: <b>Virtualization.framework</b> boots the microVM', C.cyan);
   await tween(0.9 * T, k => setVmPresence(k), easeOut);
 
-  step(3);
+  await step(3);
   await popIn(layers.kernel, true, 0.45 * T);
 
-  step(4);
+  await step(4);
   await popIn(procs.init, true, 0.35 * T);
   log('lns-init: composefs lower + overlay upper', C.violet);
   for (const m of [...layers.image, layers.runtime]) {
@@ -432,12 +432,12 @@ async function boot({fast = false, reason = 'lns run'} = {}) {
   pipes.ws.pulse = pipes.data.pulse = 1;
   seedGuestTokens(T);
 
-  step(5);
+  await step(5);
   await popIn(procs.broker, true, 0.35 * T);
   await Promise.all([popIn(vsock, true, 0.35 * T), popIn(nic, true, 0.35 * T)]);
   pipes.vs1029.pulse = 1;
 
-  step(6);
+  await step(6);
   await Promise.all([popIn(ring, true, 0.6 * T), popIn(gate, true, 0.6 * T)]);
   log('lns-supervisor: nftables <b>inet lens_sandbox</b> · proxy up', C.cyan);
   const pf = new Packet(C.cyan).at(pipes.vs1024.curve.getPointAt(0));
@@ -445,7 +445,7 @@ async function boot({fast = false, reason = 'lns run'} = {}) {
   await pf.to(GATE.clone().add(V(0, 1.2, 0)), 0.5 * T); pf.die();
   fx(GATE.clone().add(V(0, 1.6, 0)), 'policy frame', C.cyan);
 
-  step(7);
+  await step(7);
   popIn(shelf, true, 0.4 * T);
   if (S.mix.node) {
     fx(core.position.clone().add(V(0, 1.4, 0)), '[scripts 1/1] npm i -g @anthropic-ai/claude-code', C.pink);
@@ -457,14 +457,14 @@ async function boot({fast = false, reason = 'lns run'} = {}) {
     await pr.along(pipes['to-npm'].curve, 0.5 * T, 0, 1, 'to-npm'); pr.die();
   } else await sleep(0.4 * T);
 
-  step(8);
+  await step(8);
   await popIn(core, true, 0.6 * T);
   clawd.mood('surprised', 1.2);
   await tween(0.6 * T, k => setCore(k));
   clawd.mood('happy', 2.6).say('hi! I’m Claude Code, in a microVM', {dur: 3.2});
   log('workload: <b>sh -c "claude"</b> as uid 65534', C.orange);
   setCliScreen([['$ ' + reason, '#5ee89a'], ['  Image:     node:22-slim', '#9ea8c2'], ['  Volume:    data → /opt/data', '#9ea8c2'], ['  Ports:     127.0.0.1:8642 -> 8642', '#9ea8c2'], ['  ✓ running · agent', '#7fe3ff']]);
-  step(9);
+  await step(9);
   booting = false;
   setState('running');
 }
@@ -516,12 +516,12 @@ async function rmVm() {
   resetRunScoped();
   setState('gone');
 }
-async function newRun(reason = 'lns run') {
+async function newRun(reason = 'lns run', {pace} = {}) {
   if (S.vm === 'running' || S.vm === 'booting') return;
   if (S.vm === 'stopped') { await rmVm(); }
   S.run++;
   resetRunScoped();
-  await boot({fast: true, reason});
+  await boot({fast: !pace, reason, pace});
 }
 function resetRunScoped() {
   S.decisions = {http: [], tcp: []};
@@ -530,14 +530,14 @@ function resetRunScoped() {
   S.settings = S.mix.prod ? '{"theme":"light","telemetry":false}' : '{"theme":"dark"}';
   S.gitGuest = S.gitHost;
 }
-async function relaunch(why) {
+async function relaunch(why, {pace} = {}) {
   if (booting) return;
-  if (S.vm === 'gone' || S.vm === 'off') { await newRun(why); return; }
+  if (S.vm === 'gone' || S.vm === 'off') { await newRun(why, {pace}); return; }
   log(`<b>${esc(why)}</b> — mixins resolve when a run launches`, C.pink);
   if (S.vm === 'running') await stopVm();
   await rmVm();
   S.run++;
-  await boot({fast: true, reason: why});
+  await boot({fast: !pace, reason: why, pace});
 }
 
 // ─────────────────────────────────────────────────────────────── the network path
@@ -1136,7 +1136,7 @@ const CH = [
     body: `<p><b>Left</b>, your Mac. <b>Middle</b>, the <b class="c-cy">microVM</b>, with <b class="c-am">Claude Code</b> working inside and the <b class="c-cy">proxy gate</b> on its wall. <b>Right</b>, the internet. Each tower’s light is what the gate would do: <b class="c-gr">allow</b>, <b class="c-rd">deny</b> or <b class="c-gd">ask</b>.</p>
       <p style="color:#8d97b3">Hover anything to learn what it is · <code>→</code> next chapter</p>`,
     acts: () => [
-      ['▶ Take the tour', 'pri', () => startTour()],
+      ['▶ Replay the tour', 'pri', () => startTour()],
       ['<code>claude -p "fix the tests"</code>', '', () => request('claude', {cmd: 'claude -p "fix the tests"'}), C.green],
       ['<code>curl telemetry.evil.example</code>', '', () => request('evil'), C.red],
       ['<code>curl api.linear.app</code>', '', () => request('linear'), C.amber],
@@ -1366,13 +1366,13 @@ function endDemo() {
 }
 function fitDist(r) {
   const narrow = innerWidth < 900, vf = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const free = narrow ? 0.95 : Math.max(0.35, (innerWidth - 780) / innerWidth);
+  const free = narrow || touring ? 0.92 : Math.max(0.35, (innerWidth - 780) / innerWidth);
   const hf = Math.atan(Math.tan(vf) * camera.aspect * free);
   const vfe = narrow ? Math.atan(Math.tan(vf) * 0.5) : Math.atan(Math.tan(vf) * 0.82);
   return clamp(r / Math.tan(Math.min(hf, vfe)) * 1.08, 7, 70);
 }
 function stage(pts, minR = 2.6) {
-  if (!demoN) return;
+  if (!demoN && !touring) return;
   const box = new THREE.Box3().setFromPoints(pts.map(wp));
   const c = box.getCenter(new THREE.Vector3());
   const r = Math.max(minR, box.getSize(new THREE.Vector3()).length() / 2);
@@ -1400,7 +1400,7 @@ function applyLabels() {
     L.el.classList.toggle('hot', !!(L.part && parts[L.part]?.hot));
   });
 }
-function go(i) {
+function go(i, {fly = true} = {}) {
   i = (i + CH.length) % CH.length;
   current = CH[i];
   S.seen.add(current.id);
@@ -1412,42 +1412,129 @@ function go(i) {
   $('#c-body').scrollTop = 0;
   steps.querySelectorAll('.step').forEach((b, j) => { b.classList.toggle('on', j === i); b.classList.toggle('seen', S.seen.has(CH[j].id)); });
   cards.visible = current.id === 'mixin';
-  flyTo(...camFor(current));
+  if (fly) flyTo(...camFor(current));
   applyLabels();
   refresh();
   try { history.replaceState(null, '', '#' + current.id); } catch (e) {}
 }
 
-// ─────────────────────────────────────────────────────────────── tour
-let touring = false, tourTimer = null;
-const TOUR_DEMO = {
-  overview: () => request('claude', {cmd: 'claude -p "fix the tests"'}),
-  supervisor: () => relaunch('lns run'),
-  mounts: async () => { await editOnHost(); await catEnv(); },
-  volumes: async () => { await writeFile('ws'); await writeFile('upper'); },
-  filesets: async () => { await seedFilesets(); editGitHost(); },
-  network: async () => { request('npm'); await sleep(1.2); await request('evil'); },
-  policy: () => request('linear'),
-  connector: async () => { await installConnector(); await sleep(0.6); await connectConnector(); await sleep(0.6); await grantConnector(true); await request('github', {cmd: 'gh api user'}); },
-  mixin: () => toggleMixin('anthropic'),
-};
-async function startTour() {
-  touring = true;
-  $('#tour').classList.add('on');
-  let i = CH.indexOf(current);
-  while (touring) {
-    go(i);
-    await sleep(1.9);
-    if (!touring) break;
-    const t0 = performance.now();
-    beginDemo();
-    await Promise.race([TOUR_DEMO[current.id]?.(), sleep(14)]);
-    endDemo();
-    await sleep(Math.max(2.5, 6 - (performance.now() - t0) / 1000));
-    i = (i + 1) % CH.length;
-  }
+// ─────────────────────────────────────────────────────────────── tour: a paced script, one caption at a time
+let touring = false, tourId = 0, tourSkip = false;
+const towers = () => Object.values(DEST).map(d => d.pos.clone().add(V(0, d.h + 0.6, 0)));
+const BOOT_TOUR = [
+  ['lns run', 'It starts with one command. The <b>lns</b> CLI is a thin client: it hands the request to <b>lns-service</b> over a local socket.', () => [cli, svc], 3],
+  ['Prepare', '<b>lns-service</b> gathers everything the VM needs: the image layers, a kernel, a fresh writable disk, volume leases and tools.', () => [svc, cache, disk], 3.5],
+  ['Hypervisor', 'Apple’s <b>Virtualization.framework</b> creates the microVM, with one network card, a vsock, and a few virtio disks and shares.', () => VMBOX, 4.6],
+  ['Kernel', 'The VM boots <b>its own Linux kernel</b>, not your Mac’s. A kernel bug in here is a bug in the guest.', () => [layers.kernel, ...VMBOX.slice(0, 1)], 4],
+  ['lns-init', '<b>lns-init</b> is PID 1. It checks the root filesystem’s hash, then stacks it: <b>read-only image layers</b>, a <b>writable layer</b> on top, and your mounts.', () => VMBOX, 4.4],
+  ['Broker', 'The <b>session broker</b> brings up the network and serves terminal sessions over <b>vsock</b>, a host↔guest socket that isn’t a network.', () => [procs.broker, vsock, svc], 3.4],
+  ['Supervisor', '<b>lns-supervisor</b> locks the network with <b>nftables</b> and starts the <b>proxy gate</b>. The host pushes it the policy.', () => [ring, gate, GATE_KEY_POS], 3.6],
+  ['Scripts', 'Pre-start scripts run next, through the same gate. Here, one installs <b>Claude Code</b> from npm.', () => [core, gate, nat], 4],
+  ['Workload', 'Finally it drops root and starts the workload as an unprivileged user. Say hi to <b>Claude Code</b>.', () => [core], 3],
+];
+const TOUR = [
+  {ch: 'overview', say: 'This is your Mac. <b>lns</b> runs an AI agent (here, <b>Claude Code</b>) inside a <b>microVM</b>: a tiny virtual machine with its own kernel.', labels: true},
+  {ch: 'overview', say: 'The glass box is the sandbox. Claude Code sees only what is mounted in, and every connection must pass the <b>proxy gate</b> on its wall.', focus: () => VMBOX, r: 5},
+  {ch: 'overview', say: 'Each tower is a destination. Its light shows what the gate would do: <b class="c-gr">allow</b>, <b class="c-rd">deny</b>, or <b class="c-gd">ask you</b>.', focus: () => [nat, ...towers()], r: 5},
+  {ch: 'overview', say: 'Watch Claude Code call its model. A mixin allows <b>api.anthropic.com</b>, so the gate lets it through.', run: () => request('claude', {cmd: 'claude -p "fix the tests"'}), hold: 2.5},
+  {ch: 'supervisor', say: 'Now let’s boot one from scratch, one step at a time.', focus: () => [cli, svc, ...VMBOX], hold: 3.5},
+  {ch: 'supervisor', boot: true},
+  {ch: 'mounts', say: 'Its files come from a few places. Your project folder is <b>bound</b> in, shared live: edit it on your Mac and Claude sees it instantly.', run: editOnHost},
+  {ch: 'mounts', say: '<code>.env</code> is <b>excluded</b>. The name is still there, but reading it is denied, so your secrets stay on your side.', run: catEnv},
+  {ch: 'volumes', say: 'A write to <code>/workspace</code> lands straight in your folder on the Mac.', run: () => writeFile('ws')},
+  {ch: 'volumes', say: 'A write anywhere else lands in the run’s own <b>writable layer</b>. <code>lns rm</code> deletes it; your folder and named volumes survive.', run: () => writeFile('upper')},
+  {ch: 'filesets', say: '<b>Filesets</b> are files shipped with the sandbox, copied in at boot as a <b>snapshot</b>, not a live share.', run: seedFilesets},
+  {ch: 'filesets', say: 'Edit the host’s <code>~/.gitconfig</code> now and the guest keeps its copy until the next boot.', run: editGitHost},
+  {ch: 'network', say: 'Inside the VM, nftables sends every connection to the proxy. <b>registry.npmjs.org</b> is allowed.', run: () => request('npm')},
+  {ch: 'network', say: '<b>telemetry.evil.example</b> is denied. The request dies at the gate and never leaves the VM.', run: () => request('evil')},
+  {ch: 'network', say: 'Trying to skip the proxy doesn’t work: nftables redirects the socket anyway.', run: bypass},
+  {ch: 'policy', say: '<b>api.linear.app</b> has no rule, so the request is <b>held</b> and a card asks you. Watch it get answered.', run: () => request('linear')},
+  {ch: 'policy', say: '“Always” wrote a rule into this run’s <b>decisions.yaml</b>, so the next request passes without asking.', run: () => request('linear'), hold: 2},
+  {ch: 'connector', say: 'Secrets never go inside. Install the <b>github</b> connector and connect a token. It stays on your Mac.', run: async () => { await installConnector(); await sleep(0.8); await connectConnector(); }},
+  {ch: 'connector', say: 'Granting it to <b>this run</b> sends the token to the proxy, a process Claude Code cannot read.', run: () => grantConnector(true)},
+  {ch: 'connector', say: 'Claude Code sends a <b>placeholder</b>. The proxy swaps in the real token, only for <b>api.github.com</b>.', run: () => request('github', {cmd: 'gh api user'})},
+  {ch: 'mixin', say: 'A sandbox is composed from <b>mixins</b>: a toolchain, a model provider, a set of approved hosts. Each run picks its own.', focus: () => [...LAYERS.map(L => L.g), ...VMBOX], r: 6, labels: true},
+  {ch: 'mixin', say: 'Add a mixin and the run relaunches with it. <code>team-egress.yaml</code> approves api.linear.app for everyone.', run: () => { if (!S.mix.team) return toggleMixin('team'); }, hold: 2.5},
+  {ch: 'overview', say: 'That’s lns: a real VM, explicit mounts, one gate for the network, and secrets that stay outside. Now explore on your own.', labels: true, hold: 6},
+];
+const capEl = $('#cap');
+function caption(kicker, html, i, n) {
+  $('#cap-k').textContent = kicker;
+  $('#cap-t').innerHTML = html;
+  $('#cap-p').textContent = n ? `${i + 1} / ${n}` : '';
+  capEl.classList.remove('in'); void capEl.offsetWidth; capEl.classList.add('in');
 }
-function stopTour() { if (!touring) return; touring = false; $('#tour').classList.remove('on'); }
+const readTime = html => clamp(html.replace(/<[^>]+>/g, '').split(/\s+/).length / 2.6, 4, 9);
+async function hold(sec, id) {
+  tourSkip = false;
+  const bar = $('#cap-bar');
+  for (let t = 0; t < sec; t += 0.1) {
+    if (!touring || id !== tourId || tourSkip) break;
+    bar.style.transform = `scaleX(${t / sec})`;
+    await sleep(0.1);
+  }
+  bar.style.transform = 'scaleX(1)';
+}
+function frameOn(pts, minR) { const d = demoN; demoN = Math.max(demoN, 1); stage(pts, minR); demoN = d; }
+async function startTour(from = 0) {
+  if (touring) return;
+  touring = true;
+  const id = ++tourId;
+  $('#app').classList.add('touring');
+  $('#tour').classList.add('on');
+  viewOffset();
+  capEl.hidden = false;
+  speed = 0.8;
+  const beats = TOUR.length;
+  for (let i = from; i < beats; i++) {
+    if (!touring || id !== tourId) return;
+    const b = TOUR[i];
+    const ci = CH.findIndex(c => c.id === b.ch);
+    if (CH[ci] !== current) { go(ci, {fly: !b.focus && !b.run && !b.boot}); await sleep(0.6); }
+    const kick = `${current.n} · ${current.title.split(':')[0]}`;
+    $('#labels').classList.toggle('demo', !b.labels);
+    if (b.boot) {
+      let shownAt = null, need = 0;
+      await relaunch('lns run', {pace: async k => {
+        if (shownAt !== null) await hold(Math.max(1.2, need - (time.value - shownAt)), id);
+        if (k >= BOOT_TOUR.length || !touring || id !== tourId) return;
+        const [name, text, pts, r] = BOOT_TOUR[k];
+        caption(`${kick} · step ${k + 1} of ${BOOT_TOUR.length} · ${name}`, text, i, beats);
+        frameOn(pts(), r);
+        shownAt = time.value; need = readTime(text) + 0.8;
+      }});
+      continue;
+    }
+    caption(kick, b.say, i, beats);
+    if (b.focus) frameOn(b.focus(), b.r);
+    else if (!b.run) flyTo(...camFor(current), 1.6);
+    if (b.run) { beginDemo(); await Promise.race([b.run(), sleep(20)]); endDemo(); }
+    await hold(b.hold ?? readTime(b.say), id);
+  }
+  if (id === tourId) stopTour();
+}
+function viewOffset() {
+  const w = innerWidth, h = innerHeight;
+  if (w < 900) camera.setViewOffset(w, h, 0, touring ? h * 0.13 : -h * 0.2, w, h);
+  else if (touring) camera.setViewOffset(w, h, 0, h * 0.11, w, h);
+  else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', () => setTimeout(viewOffset, 0));
+function stopTour() {
+  if (!touring) return;
+  touring = false; tourId++;
+  viewOffset();
+  speed = 1;
+  $('#app').classList.remove('touring');
+  $('#tour').classList.remove('on');
+  capEl.hidden = true;
+  $('#labels').classList.remove('demo');
+  flyTo(...camFor(current), 1.4);
+}
+$('#cap-next').onclick = () => { tourSkip = true; };
+$('#cap-pause').onclick = () => { paused = !paused; $('#cap-pause').textContent = paused ? 'Resume' : 'Pause'; };
+$('#cap-exit').onclick = () => { paused = false; $('#cap-pause').textContent = 'Pause'; stopTour(); };
 
 // ─────────────────────────────────────────────────────────────── hover, click
 const ray = new THREE.Raycaster();
@@ -1517,6 +1604,7 @@ addEventListener('keydown', e => {
   else if (k === 'ArrowRight') { stopTour(); go(CH.indexOf(current) + 1); }
   else if (k === 'ArrowLeft') { stopTour(); go(CH.indexOf(current) - 1); }
   else if (k === 't' || k === 'T') touring ? stopTour() : startTour();
+  else if (k === 'Escape') stopTour();
   else if (k === 'l' || k === 'L') $('#lbltog').click();
   else if (k === 'm' || k === 'M') $('#tilt').click();
   else if (k === '/') { e.preventDefault(); $('#uitog').click(); }
@@ -1609,5 +1697,10 @@ const start = Math.max(0, CH.findIndex(c => '#' + c.id === location.hash));
 go(start);
 frame();
 window.__lab = {camera, controls, async advance(sec, step = 1 / 30) { for (let t = 0; t < sec; t += step) { tick(step); await new Promise(r => setTimeout(r, 0)); } render(); }, go, S, request, get current() { return current.id; }};
-requestAnimationFrame(() => setTimeout(() => { $('#loading').classList.add('done'); setTimeout(() => hint('Drag to orbit · hover anything · → next chapter'), 900); }, 350));
-setTimeout(() => { if (current.id === 'overview' && !touring) { clawd.mood('happy', 2.4).say('hi! I’m Claude Code, sandboxed', {dur: 3.4}); } }, 2200);
+const deepLink = location.hash && location.hash !== '#overview';
+requestAnimationFrame(() => setTimeout(() => {
+  $('#loading').classList.add('done');
+  if (deepLink) setTimeout(() => hint('Drag to orbit · hover anything · → next chapter'), 900);
+  else setTimeout(() => startTour(), 900);
+}, 350));
+
