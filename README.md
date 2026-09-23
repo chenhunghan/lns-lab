@@ -2,6 +2,8 @@
 
 An interactive 3D guide to how an [lns](https://hub.lns.run) sandbox works. It opens up one run on a Mac and walks through the machinery chapter by chapter. Every chapter has something to press.
 
+The workload in the sandbox is a little **Claude Code**. Its eyes follow every packet it sends, and its face shows what happened: ^^ when the model answers, > < when the gate says 403, "waiting…" while an approval card is held, and zzz after `lns stop`. When you press a demo, the labels fade, the glass dims, and the camera frames just the parts involved.
+
 **Live:** https://chenhunghan.github.io/lns-lab/
 
 | # | Chapter | What you can do |
@@ -36,6 +38,7 @@ Any static server works (`npx serve`, `caddy file-server`, …). Opening `index.
 index.html   layout, styles, dialogs
 world.js     the three.js diorama: host, microVM, pipes, destinations, post-processing
 app.js       the simulation: packets, policy evaluation, approval cards, chapters, UI
+clawd.js     the Claude Code mascot: body, canvas-drawn face, moods, speech bubble
 examples/    the lns documents the lab shows, as real files
 ```
 

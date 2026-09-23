@@ -1,9 +1,9 @@
 import {
   THREE, CSS2DObject, C, V, scene, camera, renderer, labelRenderer, controls, composer, tiltH, tiltV, resize, time,
-  parts, pickables, allLabels, label, vm, vmInner, shell, shellMat, shellEdges, layers, core, coreMat, ring, procs, gate,
+  parts, pickables, allLabels, label, vm, vmInner, shell, shellMat, shellEdges, layers, core, clawd, ring, procs, gate,
   gateScanMat, GATE, NIC, nic, VSOCK, vsock, SOCK, socks, plates, shelf, cli, setCliScreen, svc, vault, keyObj, cache,
   folder, disk, diskFill, gitfile, browser, nat, DEST, pipes, glow, vmLight, coreLight, SURF, VM, vmLabel, HOST_TOP,
-} from './world.js';
+} from './world.js?v=2';
 
 // ─────────────────────────────────────────────────────────────── small helpers
 const $ = s => document.querySelector(s);
@@ -146,7 +146,7 @@ const slot = {
   fs: i => plates['p-fs'].position.clone().add(V(-0.9 + i * 0.4, 0.24, 0)),
   git: i => plates['p-git'].position.clone().add(V(-0.3 + i * 0.4, 0.24, 0)),
 };
-const tokColor = {host: C.teal, ws: C.teal, data: C.blue, upper: C.amber, tmp: C.grey, fs: C.lime, git: C.lime};
+const tokColor = {host: C.ice, ws: C.ice, data: C.ice, upper: C.orange, tmp: C.grey, fs: C.ice, git: C.ice};
 function addTok(where, {from, dur = 0.6, color, masked = false} = {}) {
   const i = tok[where].length;
   const m = fileMesh(masked ? C.red : (color || tokColor[where]), masked);
@@ -268,7 +268,7 @@ const S = {
   decisions: {http: [], tcp: []},
   closed: false,
   conn: {installed: false, connected: false, granted: false, declined: false},
-  mix: {node: true, anthropic: false, team: false, prod: false},
+  mix: {node: true, anthropic: true, team: false, prod: false},
   fsRoot: false, gitHost: 1, gitGuest: 1, settings: '{"theme":"dark"}',
   term: {},
   boot: -1,
@@ -353,12 +353,12 @@ function askCard({title, text, raw = false, kind = 'Approval · agent', buttons,
 }
 
 // ─────────────────────────────────────────────────────────────── VM lifecycle
-const coreP = core.position.clone();
+const coreP = core.position.clone().add(V(0.8, -0.05, 0.25));
 function setVmPresence(k) {
   shellMat.uniforms.uO.value = k;
   shellEdges.userData.mats[0].opacity = 0.22 * k;
   shellEdges.userData.mats[1].opacity = k;
-  vmLight.intensity = 16 * k;
+  vmLight.intensity = 9 * k;
 }
 function popIn(o, on = true, dur = 0.5) {
   const s0 = o.scale.x;
@@ -372,7 +372,7 @@ function setState(s) {
   st.querySelector('span').textContent = s === 'gone' ? 'no sandbox' : `agent${S.run > 1 ? '' : ''} · ${s}`;
   refresh();
 }
-function setCore(k) { coreMat.emissiveIntensity = 1.6 * k; coreLight.intensity = 10 * k; core.userData.inner.visible = k > 0.2; }
+function setCore(k) { clawd.power(k); coreLight.intensity = 6 * k; }
 
 const BOOT = [
   ['lns run', 'CLI → lns-service over a Unix socket', 'cli'],
@@ -382,8 +382,8 @@ const BOOT = [
   ['lns-init · PID 1', 'verify descriptor, mount composefs + overlay, volumes, binds, filesets, tmpfs', 'init'],
   ['session-broker', 'eth0 via DHCP, PTYs, sessions on vsock 1029, port forwards on 1030', 'broker'],
   ['lns-supervisor', 'nftables cage · proxy :3128/:3129 · DNS :5355 · relay on vsock 1024', 'supervisor'],
-  ['pre-start scripts', 'sh -e, in order, through the same proxy: [scripts 1/1] npm ci', 'supervisor'],
-  ['privilege drop', 'exec sh -c "node server.js" as uid 65534 (sandbox)', 'workload'],
+  ['pre-start scripts', 'sh -e, in order, through the same proxy: [scripts 1/1] npm install -g @anthropic-ai/claude-code', 'supervisor'],
+  ['privilege drop', 'exec sh -c "claude" as uid 65534 (sandbox)', 'workload'],
 ];
 let booting = false;
 async function boot({fast = false, reason = 'lns run'} = {}) {
@@ -397,6 +397,7 @@ async function boot({fast = false, reason = 'lns run'} = {}) {
   clearTok('upper'); clearTok('tmp'); clearTok('ws'); clearTok('data'); clearTok('fs'); clearTok('git');
   vmInner.visible = true;
 
+  stage([cli, svc, ...VMBOX]);
   step(0);
   setCliScreen([['$ ' + reason, '#5ee89a'], ['  Image:     node:22-slim', '#9ea8c2'], ['  Volume:    data → /opt/data', '#9ea8c2'], ['  Resources: 2 vCPU · 2 GiB', '#9ea8c2'], ['  Ports:     127.0.0.1:8642 -> 8642', '#9ea8c2']]);
   log(`<b>${esc(reason)}</b> → lns-service`, C.green);
@@ -446,9 +447,9 @@ async function boot({fast = false, reason = 'lns run'} = {}) {
   step(7);
   popIn(shelf, true, 0.4 * T);
   if (S.mix.node) {
-    fx(core.position.clone().add(V(0, 1.4, 0)), '[scripts 1/1] npm ci', C.pink);
+    fx(core.position.clone().add(V(0, 1.4, 0)), '[scripts 1/1] npm i -g @anthropic-ai/claude-code', C.pink);
     setChip('node', true);
-    const pr = new Packet(C.pink, 'npm ci').at(coreP.clone());
+    const pr = new Packet(C.cyan, 'npm install').at(coreP.clone());
     await pr.to(GATE.clone(), 0.6 * T); pr.color(C.green);
     await pr.to(NIC.clone(), 0.3 * T);
     await pr.along(pipes.net.curve, 0.4 * T, 0, 1, 'net');
@@ -457,8 +458,10 @@ async function boot({fast = false, reason = 'lns run'} = {}) {
 
   step(8);
   await popIn(core, true, 0.6 * T);
+  clawd.mood('surprised', 1.2);
   await tween(0.6 * T, k => setCore(k));
-  log('workload: <b>sh -c "node server.js"</b> as uid 65534', C.orange);
+  clawd.mood('happy', 2.6).say('hi! I’m Claude Code, in a microVM', {dur: 3.2});
+  log('workload: <b>sh -c "claude"</b> as uid 65534', C.orange);
   setCliScreen([['$ ' + reason, '#5ee89a'], ['  Image:     node:22-slim', '#9ea8c2'], ['  Volume:    data → /opt/data', '#9ea8c2'], ['  Ports:     127.0.0.1:8642 -> 8642', '#9ea8c2'], ['  ✓ running · agent', '#7fe3ff']]);
   step(9);
   booting = false;
@@ -475,9 +478,11 @@ function seedGuestTokens(T = 1) {
 }
 async function stopVm() {
   if (S.vm !== 'running') return;
+  stage(VMBOX);
   log('<b>lns stop agent</b> — sync, release volumes, power off', C.amber);
   term('volumes', '<span class="pr">$</span> lns stop agent\n<span class="am">stopped run agent</span> · upper.img kept');
   setState('stopped');
+  clawd.mood('sleep', 0).say('zzz…', {dur: 2});
   clearTok('tmp');
   await Promise.all([tween(0.7, k => setCore(1 - k)), popIn(ring, false, 0.5), popIn(gate, false, 0.5), popIn(procs.init, false, 0.4), popIn(procs.broker, false, 0.4)]);
   await tween(0.5, k => setVmPresence(1 - k * 0.7));
@@ -485,6 +490,7 @@ async function stopVm() {
 }
 async function startVm() {
   if (S.vm !== 'stopped') return;
+  stage(VMBOX);
   log('<b>lns start agent</b> — same writable layer, policy re-read', C.green);
   term('volumes', '<span class="pr">$</span> lns start agent\n<span class="ok">running</span> · /tmp is empty, files elsewhere are back');
   setState('booting');
@@ -493,11 +499,13 @@ async function startVm() {
   await Promise.all([popIn(ring, true, 0.4), popIn(gate, true, 0.4)]);
   if (S.mix.node) setChip('node', true);
   await tween(0.5, k => setCore(k));
+  clawd.mood('happy', 2.4).say('back! /tmp is empty though', {dur: 3});
   setState('running');
 }
 async function rmVm() {
   if (S.vm === 'running') await stopVm();
   if (S.vm !== 'stopped') return;
+  stage([...VMBOX, folder, disk]);
   log('<b>lns rm agent</b> — writable layer, decisions and grants deleted', C.red);
   term('volumes', '<span class="pr">$</span> lns rm agent\nremoved agent · upper.img, decisions.yaml, grants <span class="er">deleted</span>\n<span class="cm"># ~/dev/app and volume "data" are untouched</span>');
   clearTok('upper'); clearTok('ws'); clearTok('data'); clearTok('fs'); clearTok('git');
@@ -546,9 +554,11 @@ async function request(k, {cmd, quiet = false} = {}) {
   cmd = cmd || `curl https://${d.host}`;
   if (S.vm !== 'running') { log(`<b>${esc(cmd)}</b>: <span style="color:${C.red}">no active run</span>`); fx(V(0, VM.top, 0), 'no running sandbox — boot it first', C.red); return 'none'; }
   inflight++;
+  stage(VMFOCUS(), 4.6);
   try {
     log(`<b>${esc(cmd)}</b>`, C.orange);
-    const p = new Packet(C.cyan, d.raw ? `TCP ${d.host}` : `CONNECT ${d.host}:443`).at(coreP.clone());
+    const p = new Packet(C.cyan, d.raw ? `TCP ${d.host}` : k === 'claude' ? 'POST /v1/messages' : `CONNECT ${d.host}:443`).at(coreP.clone());
+    clawd.turn(0.45).mood('think', 0).say(esc(cmd), {spin: true, dur: 90}).watch(p.g);
     hop(0);
     await p.along(W2G(), 0.9);
     hop(1);
@@ -559,12 +569,14 @@ async function request(k, {cmd, quiet = false} = {}) {
     if (v.verdict === 'ask') {
       p.color(C.amber).text(d.raw ? `RAW ${d.host}` : `held · ${d.host}`);
       p.hold = 1;
+      clawd.mood('wait', 0).say('waiting for your answer…', {spin: true, dur: 90});
       flashGate(C.amber);
       const q = new Packet(C.amber, '', 0.6).at(GATE.clone().add(V(0, 1.2, 0)));
       q.path([VSOCK.clone().add(V(-0.45, 0.2, 0.1))], 0.6).then(async () => { await q.along(pipes.vs1024.curve, 0.8, 1, 0, 'vs1024'); q.die(); });
       let ans;
       if (v.rule?.offer) {
         log(`connector card: <b>github</b> serves ${d.host}`, C.gold);
+        clawd.say('the github connector is asking you…', {spin: true, dur: 90});
         ans = await askCard({
           kind: 'Connector · github', title: `CONNECT ${d.host}:443`,
           text: `The <b>github</b> connector can serve this destination. Grant its <b>Personal access token</b> method to run <b>agent</b>? The token is injected at the proxy; the workload keeps a placeholder.`,
@@ -601,6 +613,7 @@ async function request(k, {cmd, quiet = false} = {}) {
     if (v.verdict === 'deny') {
       p.color(C.red).text(d.raw ? 'refused' : '403 Forbidden');
       burst(p.pos.clone(), C.red);
+      clawd.mood('ouch', 3).say(d.raw ? 'refused… no rule lets me in' : '403 — the policy said no', {dur: 3.2});
       fx(p.pos.clone().add(V(0, 0.6, 0)), `denied · ${SRC[v.src]?.name || 'policy'}`, C.red);
       log(`egress <b style="color:${C.red}">deny</b> ${d.host} <u>by ${SRC[v.src]?.name || 'policy'}</u>`);
       await p.along(W2G(), 0.8, 1, 0);
@@ -621,6 +634,8 @@ async function request(k, {cmd, quiet = false} = {}) {
       log('proxy injected <b>bearer_header</b> for api.github.com', C.gold);
     }
     log(`egress <b style="color:${C.green}">allow</b> ${d.host} <u>by ${SRC[v.src]?.name || 'your answer'}${v.once ? ' (once)' : ''}</u>`);
+    clawd.mood('think', 0).say(`allowed → ${d.host}`, {spin: true, dur: 90});
+    stage([GATE, nat, d.pos.clone().add(V(0, d.h + 0.6, 0))], 4.4);
     hop(4);
     await p.along(G2N(), 0.45);
     hop(5);
@@ -631,40 +646,49 @@ async function request(k, {cmd, quiet = false} = {}) {
     d.flash = 1;
     const code = d.raw ? 'connected' : (k === 'github' ? (inject ? '200 · {"login":"you"}' : '401 Unauthorized') : '200 OK');
     p.color(inject || k !== 'github' ? C.green : C.amber).text(code);
+    stage(VMFOCUS(), 4.6);
     await p.along(pipes['to-' + k].curve, 0.7, 1, 0, 'to-' + k);
     await p.along(pipes.net.curve, 0.45, 1, 0, 'net');
     await p.along(G2N(), 0.3, 1, 0);
     await p.along(W2G(), 0.6, 1, 0);
     burst(coreP.clone(), C.green, 0.8);
     p.die();
+    if (k === 'github' && !inject) clawd.mood('sad', 3).say('401… I have no token in here', {dur: 3.2});
+    else clawd.mood('happy', 2.6).say(inject ? 'authenticated! I never saw the token' : k === 'claude' ? 'the model answered ✓' : `${esc(code)} ✓`, {dur: 3});
     term('network', `<span class="pr">$</span> ${esc(cmd)}\n<span class="ok">${esc(code)}</span>`);
     if (k === 'github') term('connector', `<span class="pr">$</span> gh api user\n${inject ? '<span class="ok">{ "login": "you", … }</span>' : '<span class="er">HTTP 401: Bad credentials</span>'}`);
     return 'allow';
-  } finally { inflight--; }
+  } finally { inflight--; clawd.watch(null).turn(0); }
 }
 
 async function dnsLookup(host) {
   if (S.vm !== 'running') return request('evil');
+  stage(VMFOCUS(), 4.6);
   log(`<b>nslookup ${host}</b> → UDP 53 → DNS stub :5355`, C.orange);
   const p = new Packet(C.cyan, `DNS ${host}`, 0.75).at(coreP.clone());
+  clawd.turn(0.45).mood('think', 0).say(`nslookup ${host}`, {spin: true, dur: 30}).watch(p.g);
   await p.along(W2G(), 0.8);
   const v = evaluate({host});
   if (v.verdict === 'deny') {
     p.color(C.red).text('NXDOMAIN'); burst(p.pos.clone(), C.red);
     fx(p.pos.clone().add(V(0, 0.6, 0)), 'denied names never resolve', C.red);
     await p.along(W2G(), 0.7, 1, 0); p.die();
+    clawd.watch(null).turn(0).mood('surprised', 2.6).say('NXDOMAIN? it doesn’t exist for me', {dur: 3});
     term('network', `<span class="pr">$</span> nslookup ${host}\n<span class="er">** server can't find ${host}: NXDOMAIN</span>`);
   } else {
     p.color(C.green);
     await p.along(G2N(), 0.4); await p.along(pipes.net.curve, 0.5, 0, 1, 'net'); p.text('A 104.16.x.x');
     await p.along(pipes.net.curve, 0.5, 1, 0, 'net'); await p.along(G2N(), 0.3, 1, 0); await p.along(W2G(), 0.6, 1, 0); p.die();
+    clawd.watch(null).turn(0).mood('happy').say('resolved ✓');
     term('network', `<span class="pr">$</span> nslookup ${host}\n<span class="ok">Address: 104.16.x.x</span>`);
   }
 }
 async function bypass() {
   if (S.vm !== 'running') return request('evil');
+  stage(VMFOCUS(), 4.6);
   log(`<b>curl --noproxy '*' https://1.1.1.1</b> — try to skip the proxy`, C.orange);
   const p = new Packet(C.cyan, 'direct → 1.1.1.1:443').at(coreP.clone());
+  clawd.turn(0.45).mood('think', 0).say('sneaking past the proxy…', {spin: true, dur: 30}).watch(p.g);
   await p.to(V(2.2, 3.6, 0.9), 0.6);
   p.text('nftables: redirect → :3129');
   burst(p.pos.clone(), C.cyan, 0.7);
@@ -674,30 +698,35 @@ async function bypass() {
   fx(p.pos.clone().add(V(0, 0.6, 0)), 'there is no route around the proxy', C.red);
   log(`transparent listener: <b style="color:${C.red}">tls-no-sni</b> 1.1.1.1:443`);
   await p.along(W2G(), 0.7, 1, 0); p.die();
+  clawd.watch(null).turn(0).mood('ouch', 3).say('nope — nftables caught me', {dur: 3.2});
   term('network', `<span class="pr">$</span> curl --noproxy '*' https://1.1.1.1\n<span class="er">curl: (35) TLS connect error</span>\n<span class="cm"># nftables redirected it anyway; with no host name the proxy refuses it</span>`);
 }
 async function inbound() {
   if (S.vm !== 'running') { fx(browser.position.clone().add(V(0, 2.4, 0)), 'connection refused: no running sandbox', C.red); return; }
+  stage([browser, svc, VSOCK, coreP]);
   log('<b>GET localhost:8642</b> → vsock 1030 → guest 127.0.0.1:8642', C.pink);
   const p = new Packet(C.pink, 'GET / :8642').at(pipes.port.curve.getPointAt(0));
   await p.along(pipes.port.curve, 0.9, 0, 1, 'port');
   await p.along(pipes.vs1030.curve, 0.9, 0, 1, 'vs1030');
   await p.path([procs.broker.position.clone().add(V(0, 0.3, 0))], 0.45);
   p.text('dial 127.0.0.1:8642');
+  clawd.watch(p.g).mood('surprised', 2);
   await p.path([coreP.clone()], 0.5);
+  clawd.mood('happy', 2.4).say('someone visited my dev server!', {dur: 3});
   burst(coreP.clone(), C.pink, 0.8);
   p.text('200 · <html>');
   await p.path([procs.broker.position.clone().add(V(0, 0.3, 0)), VSOCK.clone().add(V(0.45, -0.18, 0))], 0.7);
   await p.along(pipes.vs1030.curve, 0.7, 1, 0, 'vs1030');
   await p.along(pipes.port.curve, 0.7, 1, 0, 'port');
   burst(p.pos.clone(), C.pink, 0.8);
-  p.die();
+  p.die(); clawd.watch(null);
   term('network', `<span class="pr">$</span> curl localhost:8642\n<span class="ok">200 OK</span> <span class="cm"># inbound needs no egress rule — spec.ports published it</span>`);
 }
 
 // ─────────────────────────────────────────────────────────────── connector steps
 async function installConnector() {
   if (S.conn.installed) return;
+  stage([vault, svc], 3.2);
   S.conn.installed = true;
   log('<b>lns connector install ./connectors/github</b> — installing grants nothing', C.gold);
   term('connector', '<span class="pr">$</span> lns connector install ./connectors/github\n<span class="ok">installed</span> github · serves api.github.com, github.com\n<span class="cm"># its destinations now ASK instead of guessing</span>');
@@ -707,6 +736,7 @@ async function installConnector() {
 async function connectConnector() {
   if (!S.conn.installed) await installConnector();
   if (S.conn.connected) return;
+  stage([vault, svc], 3.2);
   S.conn.connected = true;
   log('<b>lns connector connect github</b> — token stored on this Mac', C.gold);
   term('connector', '<span class="pr">$</span> lns connector connect github\nPersonal access token: <span class="cm">(input hidden)</span>\n<span class="ok">connected</span> github as “github”');
@@ -718,6 +748,7 @@ async function connectConnector() {
 async function grantConnector(fromTerminal = true) {
   if (!S.conn.connected) await connectConnector();
   if (S.conn.granted) return;
+  stage([vault, svc, VSOCK, GATE_KEY_POS]);
   if (fromTerminal) term('connector', '<span class="pr">$</span> lns connector grant github --run agent\n  opens    api.github.com\n  injects  GH_TOKEN as bearer_header on api.github.com\nGrant? <span class="ok">yes</span>');
   S.conn.granted = true; S.conn.declined = false;
   log('<b>granted</b> github to run agent — value sent to the proxy over vsock 1024', C.gold);
@@ -728,6 +759,8 @@ async function grantConnector(fromTerminal = true) {
   k.die();
   gateKey.position.copy(GATE_KEY_POS);
   gateKey.visible = true;
+  clawd.watch(gateKey).mood('surprised', 2.4).say('the proxy holds the key, not me', {dur: 3.2});
+  setTimeout(() => clawd.watch(null), 2500);
   burst(GATE_KEY_POS.clone(), C.gold);
   refresh();
 }
@@ -744,8 +777,11 @@ function forgetConnector() {
 // ─────────────────────────────────────────────────────────────── filesystem actions
 async function writeFile(where) {
   if (S.vm !== 'running') { fx(V(0, VM.top, 0), 'no running sandbox', C.red); return; }
+  stage(where === 'ws' ? [coreP, folder, plates['p-ws']] : where === 'data' ? [coreP, disk, plates['p-data']] : [coreP, slot.upper(0), plates['p-tmp']], 3);
   const target = {ws: '/workspace/notes.md', data: '/opt/data/app.db', upper: '/var/cache/app/x', tmp: '/tmp/scratch'}[where];
   log(`workload writes <b>${target}</b>`, tokColor[where]);
+  clawd.mood('think', 1.2).say(`writing ${target}`, {spin: true, dur: 1.4}).turn(-0.4);
+  setTimeout(() => clawd.turn(0).mood('happy', 2).say({ws: 'saved — it’s on your Mac too', data: 'saved to the volume', upper: 'saved in my own layer', tmp: 'saved in RAM'}[where], {dur: 2.6}), 900);
   const from = coreP.clone();
   if (where === 'ws') {
     const m = addTok('ws', {from, dur: 0.7});
@@ -775,6 +811,7 @@ function setDiskFill() {
   burst(disk.position.clone().add(V(0, 1.2, 0)), C.blue, 0.8);
 }
 async function editOnHost() {
+  stage([folder, plates['p-ws']], 3);
   log('you edit <b>~/dev/app/README.md</b> in your editor', C.teal);
   const m = tok.host[2];
   if (m) tween(0.6, k => m.material.emissiveIntensity = 1.1 + Math.sin(k * Math.PI) * 2.5);
@@ -785,46 +822,59 @@ async function editOnHost() {
     const g = tok.ws[2];
     if (g) tween(0.6, k => g.material.emissiveIntensity = 1.1 + Math.sin(k * Math.PI) * 2.5);
     fx(plates['p-ws'].position.clone().add(V(0, 0.9, 0)), 'the guest sees it live', C.teal);
+    clawd.watch(plates['p-ws']).mood('surprised', 2.4).say('README just changed under me!', {dur: 3});
+    setTimeout(() => clawd.watch(null), 2600);
     term('mounts', '<span class="pr">guest$</span> cat /workspace/README.md\n# app <span class="ok">(edited on the host a second ago)</span>');
   } else term('mounts', '<span class="cm"># the edit is on your disk; the next run sees it</span>');
   p.die();
 }
 async function catEnv() {
   if (S.vm !== 'running') return fx(V(0, VM.top, 0), 'no running sandbox', C.red);
+  stage([coreP, plates['p-ws']], 3);
   log('workload reads <b>/workspace/.env</b>', C.orange);
   const p = new Packet(C.orange, 'open(".env")', 0.7).at(coreP.clone());
+  clawd.turn(-0.5).mood('think', 0).say('cat /workspace/.env', {spin: true, dur: 10}).watch(p.g);
   const masked = tok.ws.find(m => m.userData.masked);
   await p.path([masked ? masked.position.clone().add(V(0, 0.3, 0)) : plates['p-ws'].position.clone()], 0.8);
   p.color(C.red).text('EACCES'); burst(p.pos.clone(), C.red);
   fx(p.pos.clone().add(V(0, 0.6, 0)), 'excluded: masked, not absent', C.red);
   await p.path([coreP.clone()], 0.6); p.die();
+  clawd.watch(null).turn(0).mood('sad', 3).say('permission denied — .env is masked', {dur: 3.2});
   term('mounts', '<span class="pr">guest$</span> ls -a /workspace\n.  ..  <span class="er">.env</span>  README.md  package.json  server.js\n<span class="pr">guest$</span> cat /workspace/.env\n<span class="er">cat: /workspace/.env: Permission denied</span>');
 }
 async function copyUp() {
   if (S.vm !== 'running') return fx(V(0, VM.top, 0), 'no running sandbox', C.red);
+  stage([coreP, slot.upper(0), layers.image[1]], 3);
   log('workload edits <b>/etc/motd</b> (from an image layer)', C.orange);
   const p = new Packet(C.violet, 'read /etc/motd', 0.7).at(coreP.clone());
+  clawd.mood('think', 1.5).say('editing /etc/motd', {spin: true, dur: 1.5}).watch(p.g);
   await p.path([layers.image[1].position.clone().add(V(1.6, 0.1, 1.2))], 0.7);
   burst(p.pos.clone(), C.violet, 0.7);
   p.color(C.amber).text('copy-up');
   await p.path([slot.upper(tok.upper.length).add(V(0, 0.2, 0))], 0.6); p.die();
   addTok('upper');
   fx(slot.upper(0).add(V(0, 0.8, 0)), 'lower stays read-only', C.amber);
+  clawd.watch(null).mood('happy').say('done — the image never changed');
   term('mounts', '<span class="pr">guest$</span> echo hello >> /etc/motd\n<span class="ok">✓</span> <span class="cm"># overlay copied the file up into the writable layer</span>');
 }
 async function catCmdline() {
   if (S.vm !== 'running') return fx(V(0, VM.top, 0), 'no running sandbox', C.red);
+  stage([procs.init, coreP], 3);
   term('mounts', '<span class="pr">guest$</span> cat /proc/cmdline\nconsole=hvc0 upper.dev=/dev/vda composefs.descriptor.dev=/dev/vdb …\n<span class="cm"># lns-init mounted a sanitized copy: the boot token is gone</span>');
   fx(procs.init.position.clone().add(V(0, 1.1, 0)), 'boot token scrubbed', C.cyan);
+  clawd.mood('think', 2.4).say('no secrets in /proc/cmdline', {dur: 2.8});
   burst(procs.init.position.clone().add(V(0, 0.4, 0)), C.cyan, 0.6);
 }
 async function execSession() {
   if (S.vm !== 'running') return fx(V(0, VM.top, 0), 'no running sandbox', C.red);
+  stage([svc, VSOCK, procs.broker, coreP]);
   log('<b>lns exec agent -- sh</b> — a second session over vsock 1029', C.cyan);
   const p = new Packet(C.cyan, 'exec session').at(pipes.vs1029.curve.getPointAt(0));
   await p.along(pipes.vs1029.curve, 0.9, 0, 1, 'vs1029');
   await p.path([procs.broker.position.clone().add(V(0, 0.3, 0))], 0.4);
   p.text('sh · same env, user, mounts');
+  clawd.watch(p.g).mood('surprised', 2.6).say('a new shell appeared next to me', {dur: 3});
+  setTimeout(() => clawd.watch(null), 2600);
   await p.path([coreP.clone().add(V(0.6, -0.4, 0.8))], 0.5);
   burst(p.pos.clone(), C.cyan, 0.6);
   await sleep(0.8); p.die();
@@ -832,6 +882,7 @@ async function execSession() {
 }
 async function seedFilesets() {
   if (S.vm !== 'running') return newRun();
+  stage([cache, gitfile, plates['p-fs'], plates['p-git']]);
   log('filesets are written at <b>launch</b>, before the workload starts', C.lime);
   clearTok('fs'); clearTok('git');
   await sleep(0.3);
@@ -840,29 +891,35 @@ async function seedFilesets() {
   addTok('git', {from: gitfile.position.clone().add(V(0, 0.8, 0)), dur: 1.0});
   S.gitGuest = S.gitHost;
   await sleep(1.0);
+  clawd.mood('happy').say('my settings arrived');
   term('filesets', `<span class="pr">guest$</span> cat /opt/app/settings.json\n${esc(S.settings)}\n<span class="pr">guest$</span> git config user.name\nyou${S.gitGuest > 1 ? ' (v' + S.gitGuest + ')' : ''}`);
 }
 function editGitHost() {
   S.gitHost++;
+  stage([gitfile, plates['p-git']], 3);
   log(`you edit <b>~/.gitconfig</b> on your Mac (v${S.gitHost})`, C.lime);
   tween(0.8, k => gitfile.userData.mat.emissiveIntensity = 0.3 + Math.sin(k * Math.PI) * 2.5);
   fx(gitfile.position.clone().add(V(0, 1.8, 0)), 'nothing flows: hostPath is a snapshot', C.lime);
-  if (S.vm === 'running') fx(plates['p-git'].position.clone().add(V(0, 0.8, 0)), `guest still has v${S.gitGuest}`, C.amber);
+  if (S.vm === 'running') { fx(plates['p-git'].position.clone().add(V(0, 0.8, 0)), `guest still has v${S.gitGuest}`, C.amber); clawd.mood('think', 2.6).say(`my gitconfig is still v${S.gitGuest}`, {dur: 3}); }
   term('filesets', `<span class="cm"># host: ~/.gitconfig is now v${S.gitHost}</span>\n<span class="pr">guest$</span> git config user.name\nyou${S.gitGuest > 1 ? ' (v' + S.gitGuest + ')' : ''} <span class="cm"># read once at launch (v${S.gitGuest})</span>`);
   refresh();
 }
 async function editSettings() {
   if (S.vm !== 'running') return fx(V(0, VM.top, 0), 'no running sandbox', C.red);
+  stage([coreP, plates['p-fs']], 3);
   const root = S.fsRoot || S.mix.prod;
   const p = new Packet(C.orange, 'write settings.json', 0.7).at(coreP.clone());
+  clawd.watch(p.g);
   await p.path([slot.fs(0).add(V(0, 0.3, 0))], 0.8);
   if (root) {
     p.color(C.red).text('EACCES'); burst(p.pos.clone(), C.red);
     fx(p.pos.clone().add(V(0, 0.6, 0)), 'owner: root — a pinned input', C.red);
+    clawd.watch(null).mood('sad', 3).say('settings.json is pinned (owner: root)', {dur: 3});
     term('filesets', '<span class="pr">guest$</span> echo {} > /opt/app/settings.json\n<span class="er">sh: can\'t create /opt/app/settings.json: Permission denied</span>');
   } else {
     p.color(C.green).text('written'); burst(p.pos.clone(), C.green, 0.8);
     S.settings = '{"theme":"hacked"}';
+    clawd.watch(null).mood('happy').say('rewrote my settings');
     fx(p.pos.clone().add(V(0, 0.6, 0)), 'owner: workload — it may rewrite it', C.green);
     term('filesets', '<span class="pr">guest$</span> echo \'{"theme":"hacked"}\' > /opt/app/settings.json\n<span class="ok">✓</span> <span class="cm"># the artifact is untouched; the next boot seeds it fresh</span>');
   }
@@ -870,6 +927,7 @@ async function editSettings() {
 }
 async function secondRun() {
   if (ghost.visible) return;
+  stage([folder, disk, ghost.position.clone().add(V(0, 2, 0))]);
   log('<b>lns run --name agent-2</b> with the same bind and volume', C.cyan);
   ghost.visible = true;
   ghost.scale.setScalar(0.001);
@@ -924,7 +982,7 @@ function yaml(lines) {
 }
 const SANDBOX_YAML = [
   {t: 'apiVersion: lns.run/v1'}, {t: 'kind: sandbox'}, {t: 'name: agent'}, {t: 'spec:'},
-  {t: '  image: node:22-slim', ch: 'supervisor'}, {t: '  command: node server.js', ch: 'supervisor'}, {t: '  workdir: /workspace', ch: 'mounts'},
+  {t: '  image: node:22-slim', ch: 'supervisor'}, {t: '  command: claude', ch: 'supervisor'}, {t: '  workdir: /workspace', ch: 'mounts'},
   {t: '  resources:', ch: 'supervisor'}, {t: '    cpu: 2', ch: 'supervisor'}, {t: '    memory: 2Gi', ch: 'supervisor'},
   {t: '  volumes:', ch: 'volumes', k: 'vol'}, {t: '    - type: bind', ch: 'mounts', k: 'vol'}, {t: '      source: .', ch: 'mounts', k: 'vol'}, {t: '      target: /workspace', ch: 'mounts', k: 'vol'}, {t: '      exclude: [.env]', ch: 'mounts', k: 'vol'},
   {t: '    - type: volume', ch: 'volumes', k: 'vol'}, {t: '      source: data', ch: 'volumes', k: 'vol'}, {t: '      target: /opt/data', ch: 'volumes', k: 'vol'},
@@ -941,24 +999,24 @@ function term(ch, html) {
 }
 const termBox = (ch, hint) => `<section class="card pane"><h3>Terminal <em>${hint || 'what the workload sees'}</em></h3><pre class="term" id="term">${(S.term[ch] || ['<span class="cm"># try the buttons on the left</span>']).join('\n')}</pre></section>`;
 
-let overviewTab = 'yaml';
+let overviewTab = 'yaml', overviewOpen = false;
 const PANELS = {
   overview() {
+    if (!overviewOpen) return `<section class="card pane"><h3>The sandbox <em>one lns.yaml</em></h3><button class="btn" data-open="1" style="width:100%;justify-content:space-between">Show the document behind it <span class="k">lns.yaml ▸</span></button></section>`;
     const tabs = `<div class="tabs"><button data-tab="yaml" class="${overviewTab === 'yaml' ? 'on' : ''}">lns.yaml</button><button data-tab="banner" class="${overviewTab === 'banner' ? 'on' : ''}">lns run</button><button data-tab="map" class="${overviewTab === 'map' ? 'on' : ''}">legend</button></div>`;
     let body;
     if (overviewTab === 'yaml') body = yaml(SANDBOX_YAML.map(l => ({...l, c: CH.find(c => c.id === l.ch)?.color})));
     else if (overviewTab === 'banner') body = `<pre class="term" style="max-height:none">${[
-      '<span class="pr">$</span> lns run', 'lns run', '  Image:     node:22-slim', '  Mixin:     ./mixins/node', '  Mount:     bind . → /workspace (exclude .env)',
+      '<span class="pr">$</span> lns run --mixin ./mixins/anthropic', 'lns run', '  Image:     node:22-slim', '  Mixin:     ./mixins/node', '  Mount:     bind . → /workspace (exclude .env)',
       '  Volume:    data → /opt/data', '  Fileset:   inline → /opt/app', '  Fileset:   host file ~/.gitconfig → /etc/gitconfig', '  Resources: 2 vCPU · 2 GiB', '  Flags:     -i -t',
-      '  Ports:     127.0.0.1:8642 -> 8642', '  Egress:    allow registry.npmjs.org  [lns.yaml]', '             deny  telemetry.evil.example  [lns.yaml]', '             allow *.npmjs.org  [mixins/node]',
-      '  Decisions: recorded in this run, and removed with it', '<span class="cm">[scripts 1/1] cd /workspace &amp;&amp; npm ci</span>', '<span class="ok">✓</span> running agent'].join('\n')}</pre>`;
+      '  Ports:     127.0.0.1:8642 -> 8642', '  Mixin:     ./mixins/anthropic (--mixin)', '  Egress:    allow api.anthropic.com  [mixins/anthropic]', '             allow *.npmjs.org  [mixins/node]', '             allow registry.npmjs.org  [lns.yaml]', '             deny  telemetry.evil.example  [lns.yaml]',
+      '  Decisions: recorded in this run, and removed with it', '<span class="cm">[scripts 1/1] npm install -g @anthropic-ai/claude-code</span>', '<span class="ok">✓</span> running agent'].join('\n')}</pre>`;
     else body = `<div class="rows">${[
-      [C.cyan, 'VM', 'microVM', 'glass box · its own kernel'], [C.orange, 'W', 'workload', 'your code, unprivileged'], [C.cyan, 'S', 'supervisor + proxy', 'ring + gate inside the VM'],
-      [C.violet, 'L', 'image layers', 'read-only, shared'], [C.amber, 'U', 'writable layer', 'per run, deleted by lns rm'], [C.teal, 'B', 'bind', 'your folder, live'],
-      [C.blue, 'V', 'named volume', 'a disk that outlives runs'], [C.lime, 'F', 'fileset', 'files shipped in the artifact'], [C.green, '→', 'allowed traffic', ''],
-      [C.red, '×', 'denied', ''], [C.amber, '?', 'held · asking you', ''], [C.gold, 'K', 'connector secret', 'never in the workload'], [C.pink, 'M', 'mixin', 'a layered capability']]
-      .map(([c, i, t, s]) => `<div class="row on" style="--c:${c}"><span class="ic">${i}</span><span class="tx"><b>${t}</b>${s ? `<small>${s}</small>` : ''}</span></div>`).join('')}</div>`;
-    return `<section class="card pane" style="flex:1"><h3>The sandbox <em>${overviewTab === 'yaml' ? 'click a line to open its chapter' : overviewTab === 'banner' ? 'what lns run prints first' : 'colours in the scene'}</em></h3>${tabs}<div class="scroll">${body}</div></section>`;
+      [C.cyan, 'lns itself', 'the microVM, supervisor, proxy gate, service, vsock'], [C.orange, 'your workload', 'and what it writes to its own layer'],
+      [C.ice, 'your files and data', 'binds, volumes, filesets, caches'], [C.green, 'allowed', 'traffic the gate lets through'],
+      [C.red, 'denied', 'refused at the gate'], [C.gold, 'asking · secret', 'held for your answer, or a real token']]
+      .map(([c, t, s]) => `<div class="row on" style="--c:${c}"><span class="ic"></span><span class="tx"><b>${t}</b><small>${s}</small></span></div>`).join('')}</div>`;
+    return `<section class="card pane" style="flex:1"><h3>The sandbox <em><button class="btn" data-open="0" style="height:20px;padding:0 6px;font-size:10px">hide</button></em></h3>${tabs}<div class="scroll">${body}</div></section>`;
   },
   supervisor() {
     const rows = BOOT.map(([t, s, pk], i) => `<div class="row click ${S.boot === i ? 'on' : S.boot > i ? 'done' : ''}" data-part="${pk}" style="--c:${i < 2 ? C.green : i < 4 ? C.blue : C.cyan}"><span class="ic">${i + 1}</span><span class="tx"><b>${t}</b><small>${s}</small></span></div>`).join('');
@@ -966,7 +1024,7 @@ const PANELS = {
       <section class="card pane"><h3>Process tree <em>inside the guest</em></h3><pre class="term">${S.vm === 'running' ? `<span class="cy">1</span>  lns-init <span class="cm">(PID 1 → execs the broker)</span>
 └ <span class="cy">lns-session-broker</span>  <span class="cm">vsock 1029/1030</span>
   └ <span class="cy">lns-supervisor</span>  <span class="cm">root · nft · proxy · dns</span>
-    └ <span class="am">sh -c "node server.js"</span>  <span class="cm">uid 65534</span>` : S.vm === 'booting' ? '<span class="cm">booting…</span>' : '<span class="cm">no processes — the VM is powered off</span>'}</pre></section>${termBox('supervisor')}`;
+    └ <span class="am">sh -c "claude"</span>  <span class="cm">uid 65534 · Claude Code</span>` : S.vm === 'booting' ? '<span class="cm">booting…</span>' : '<span class="cm">no processes — the VM is powered off</span>'}</pre></section>${termBox('supervisor')}`;
   },
   mounts() {
     const rows = [
@@ -1052,7 +1110,7 @@ data   10Gi   ${S.vm === 'gone' ? '<span class="cm">—</span>' : 'agent' + (S.v
   },
   mixin() {
     const on = k => k === 'sandbox' ? true : k === 'connector' ? S.conn.granted : k === 'decisions' ? (S.decisions.http.length + S.decisions.tcp.length) > 0 : S.mix[k];
-    const what = {sandbox: 'image · command · 2 rules · mounts · filesets', node: 'tool node@22 · env · *.npmjs.org · script', anthropic: 'env ANTHROPIC_BASE_URL · api.anthropic.com', team: 'api.linear.app (saved answers)', prod: 'fileset /opt/app (owner: root)', connector: 'egress + injection, once granted', decisions: `${S.decisions.http.length + S.decisions.tcp.length} rule(s) you answered`};
+    const what = {sandbox: 'image · command · 2 rules · mounts · filesets', node: 'tool node@22 · *.npmjs.org · installs Claude Code', anthropic: 'env ANTHROPIC_BASE_URL · api.anthropic.com', team: 'api.linear.app (saved answers)', prod: 'fileset /opt/app (owner: root)', connector: 'egress + injection, once granted', decisions: `${S.decisions.http.length + S.decisions.tcp.length} rule(s) you answered`};
     const stack = LAYERS.map((L, i) => `<div class="lay ${on(L.k) ? 'on' : ''}" style="--c:${L.color}"><button class="sw" data-mix="${L.k}" ${L.fixed ? 'disabled' : ''} aria-label="toggle ${L.name}"></button><span class="tx"><b>${L.name}</b><small>${what[L.k]}</small></span><span class="pr">${i + 1}</span></div>`).join('');
     const env = [['NPM_CONFIG_CACHE', '/opt/data/npm', 'node', S.mix.node], ['ANTHROPIC_BASE_URL', 'https://api.anthropic.com', 'anthropic', S.mix.anthropic]].filter(e => e[3]);
     const rules = mergedRules().filter(r => !r.offer);
@@ -1062,7 +1120,7 @@ data   10Gi   ${S.vm === 'gone' ? '<span class="cm">—</span>' : 'agent' + (S.v
       S.mix.prod ? {t: '  fileset:  inline -> /opt/app (root)', src: 'prod-settings', c: C.pink, hl: true} : {t: '  fileset:  inline -> /opt/app', src: 'lns.yaml'},
       ...(S.mix.node ? [{t: '  tool:     node@22', src: 'node', c: C.pink, hl: true}] : []),
       ...rules.map(r => ({t: `  egress:   ${r.verdict.padEnd(5)} ${r.match}`, src: SRC[r.src].name.replace('--mixin ', ''), c: SRC[r.src].color, hl: r.src !== 'sandbox'})),
-      ...(S.mix.node ? [{t: '  script:   cd /workspace && npm ci', src: 'node', c: C.pink}] : [])];
+      ...(S.mix.node ? [{t: '  script:   npm install -g @anthropic-ai/claude-code', src: 'node', c: C.pink}] : [])];
     return `<section class="card pane"><h3>The layers <em>toggle a mixin · 1 = weakest</em></h3><div class="scroll"><div class="stk">${stack}</div></div></section>
       <section class="card pane" style="flex:1"><h3>The merge <em>lns inspect -f lns.yaml --mixin …</em></h3><div class="scroll">${yaml(out)}</div></section>
 `;
@@ -1072,20 +1130,18 @@ data   10Gi   ${S.vm === 'gone' ? '<span class="cm">—</span>' : 'agent' + (S.v
 // ─────────────────────────────────────────────────────────────── chapters
 const CH = [
   {id: 'overview', title: 'The whole machine', color: C.cyan, cam: [V(0.5, 33, 55), V(-1.2, -0.4, 2.2)],
-    labels: ['host', 'shell', 'workload', 'supervisor', 'gate', 'service', 'cli', 'folder', 'disk', 'vault', 'cache', 'nat', 'dest-*', 'browser'],
+    labels: ['host', 'shell', 'workload', 'gate', 'service', 'folder'],
     lede: 'lns runs your agent, command or OCI image inside a <b>microVM</b> on your own machine. It gets a whole Linux computer, but it only sees what you mount in, and every connection it opens has to pass one gate.',
-    body: `<p>Left is <b>your Mac</b>: the <code>lns</code> CLI, the <b>lns-service</b> that runs everything, your project folder, a disk image, a cache and a vault of secrets.</p>
-      <p>In the middle is the <b class="c-cy">microVM</b>, a glass box with its own kernel. Your <b class="c-am">workload</b> glows orange inside, circled by the <b class="c-cy">supervisor</b>. The arch on its right wall is the <b class="c-cy">proxy gate</b>: the only way out.</p>
-      <p>Right is <b>the internet</b>. The beacon on each tower shows what the gate would do right now: <b class="c-gr">allow</b>, <b class="c-rd">deny</b> or <b class="c-am">ask you</b>.</p>
-      <p style="color:#8d97b3">Hover anything to see what it is. Drag to orbit. Press <code>→</code> for the next chapter.</p>`,
+    body: `<p><b>Left</b>, your Mac. <b>Middle</b>, the <b class="c-cy">microVM</b>, with <b class="c-am">Claude Code</b> working inside and the <b class="c-cy">proxy gate</b> on its wall. <b>Right</b>, the internet. Each tower’s light is what the gate would do: <b class="c-gr">allow</b>, <b class="c-rd">deny</b> or <b class="c-gd">ask</b>.</p>
+      <p style="color:#8d97b3">Hover anything to learn what it is · <code>→</code> next chapter</p>`,
     acts: () => [
       ['▶ Take the tour', 'pri', () => startTour()],
-      ['<code>curl registry.npmjs.org</code>', '', () => request('npm'), C.green],
+      ['<code>claude -p "fix the tests"</code>', '', () => request('claude', {cmd: 'claude -p "fix the tests"'}), C.green],
       ['<code>curl telemetry.evil.example</code>', '', () => request('evil'), C.red],
       ['<code>curl api.linear.app</code>', '', () => request('linear'), C.amber],
     ]},
   {id: 'supervisor', title: 'Boot & the supervisor', color: C.cyan, cam: [V(-9, 16, 25), V(-5.4, 2.4, -2)],
-    labels: ['cli', 'service', 'kernel', 'init', 'broker', 'supervisor', 'workload', 'vsock', 'gate', 'image2', 'runtime', 'upper'],
+    labels: ['cli', 'service', 'init', 'broker', 'supervisor', 'workload', 'vsock'],
     lede: '<code>lns</code> is a thin client. <b>lns-service</b> does the work, a hypervisor boots a real kernel, and three small static binaries turn that kernel into a cage <b>before</b> your code runs.',
     body: `<p><b class="c-cy">lns-init</b> is PID 1. It checks the root filesystem’s descriptor against a SHA-256 on the kernel command line, mounts the layers, your binds and volumes, then hides its own boot token.</p>
       <p><b class="c-cy">lns-session-broker</b> gets an address by DHCP and serves terminal sessions over <b>vsock</b>, a host↔guest socket that isn’t a network at all.</p>
@@ -1095,8 +1151,8 @@ const CH = [
       ['<code>lns exec agent -- sh</code>', '', execSession, C.cyan],
       S.vm === 'stopped' ? ['<code>lns start agent</code>', '', startVm, C.green] : ['<code>lns stop agent</code>', '', stopVm, C.amber],
     ]},
-  {id: 'mounts', title: 'Mounts: what the guest sees', color: C.violet, cam: [V(-15.5, 14, 21), V(-6.4, 1.7, 0.6)],
-    labels: ['folder', 'cache', 'image2', 'runtime', 'upper', 'p-ws', 'p-data', 'p-fs', 'p-git', 'p-tmp', 'workload', 'disk', 'kernel'],
+  {id: 'mounts', title: 'Mounts: what the guest sees', color: C.cyan, cam: [V(-15.5, 14, 21), V(-6.4, 1.7, 0.6)],
+    labels: ['folder', 'cache', 'image2', 'upper', 'p-ws', 'p-data'],
     lede: 'The guest’s root filesystem is a stack: <b class="c-vi">read-only image layers</b>, a <b class="c-am">writable layer</b> on top, and a few doors cut in where your directories and disks are mounted.',
     body: `<p>The image never gets unpacked into the VM. Its files stay in the host’s <b class="c-vi">content store</b>, shared read-only over <b>virtio-fs</b>. A small <b>composefs</b> descriptor tells the guest which file is which, and the kernel refuses a descriptor whose SHA-256 doesn’t match.</p>
       <p>On top, <b>overlayfs</b> adds the <b class="c-am">writable layer</b>. Change a file from the image and it is <b>copied up</b>: the lower layer is never touched, so ten sandboxes can share one image.</p>
@@ -1107,8 +1163,8 @@ const CH = [
       ['<code>echo &gt;&gt; /etc/motd</code>', '', copyUp, C.amber],
       ['<code>cat /proc/cmdline</code>', '', catCmdline, C.cyan],
     ]},
-  {id: 'volumes', title: 'Volumes: what survives', color: C.blue, cam: [V(-7.5, 17, 27), V(-5.6, 1.3, 1.2)],
-    labels: ['folder', 'disk', 'upper', 'p-ws', 'p-data', 'p-tmp', 'workload'],
+  {id: 'volumes', title: 'Volumes: what survives', color: C.cyan, cam: [V(-7.5, 17, 27), V(-5.6, 1.3, 1.2)],
+    labels: ['folder', 'disk', 'upper', 'p-ws', 'p-data', 'p-tmp'],
     lede: 'Four places a write can land, four lifetimes. Write to each, then <b>stop</b>, <b>start</b> and <b>remove</b> the run and watch which files are still there.',
     body: `<p><b class="c-tl">A bind</b> is your folder. It outlives everything because it was never the sandbox’s. Any number of guests can share it.</p>
       <p><b class="c-bl">A named volume</b> is an ext4 disk image the service keeps. It outlives every run, but it is one guest’s block device, so while a sandbox holds it (even a <b>stopped</b> one) a second run is refused with <code>volume in use</code>.</p>
@@ -1123,8 +1179,8 @@ const CH = [
       S.vm === 'gone' ? ['<code>lns run</code>', 'pri', () => newRun()] : ['<code>lns rm</code>', '', rmVm, C.red],
       ['2nd sandbox, same mounts', '', secondRun, C.cyan],
     ]},
-  {id: 'filesets', title: 'Filesets: files that ship with it', color: C.lime, cam: [V(-7.5, 19, 32), V(-5.8, 1.4, 1.6)],
-    labels: ['cache', 'gitfile', 'p-fs', 'p-git', 'runtime', 'workload', 'p-ws'],
+  {id: 'filesets', title: 'Filesets: files that ship with it', color: C.cyan, cam: [V(-7.5, 19, 32), V(-5.8, 1.4, 1.6)],
+    labels: ['cache', 'gitfile', 'p-fs', 'p-git'],
     lede: 'Volumes bring <b>your</b> files in. Filesets go the other way: files the <b>author</b> ships inside the artifact, written into the guest as a <b>snapshot</b> each time it boots.',
     body: `<p>An entry has exactly one source. <b>inline</b> text lives in lns.yaml itself. A <b>path</b> directory is packed into a layer of the same artifact at <code>lns push</code>, so the files and the declaration that mounts them share one digest. A <b>hostPath</b> reads one file off the machine that runs it, such as <code>~/.gitconfig</code>.</p>
       <p>None of them is a share. Edit the host file after boot and the guest keeps its copy. Edit it in the guest and the host never knows.</p>
@@ -1137,8 +1193,8 @@ const CH = [
       [`owner: ${S.fsRoot ? 'root → workload' : 'workload → root'}`, '', toggleOwnerRoot, C.amber],
       [S.mix.prod ? 'drop --mixin prod-settings' : '<code>--mixin prod-settings</code>', '', () => toggleMixin('prod'), C.pink],
     ]},
-  {id: 'network', title: 'Network: one door out', color: C.green, cam: [V(9.5, 19, 33), V(9.5, 1.6, 1.4)],
-    labels: ['workload', 'gate', 'nic', 'nat', 'dest-*', 'browser', 'vsock', 'broker'],
+  {id: 'network', title: 'Network: one door out', color: C.cyan, cam: [V(9.5, 19, 33), V(9.5, 1.6, 1.4)],
+    labels: ['gate', 'nic', 'nat', 'dest-*', 'browser'],
     lede: 'No route out skips the gate. Inside the guest, <b>nftables</b> sends every TCP connection to the supervisor’s <b class="c-cy">proxy</b> and every DNS query to its stub, and drops the rest.',
     body: `<p>The proxy reads the <b>host name</b>, from the <code>CONNECT</code> line, the TLS SNI, or the HTTP Host, and matches it against the rule table. An allowed connection is dialed <b>by the proxy</b>, out through <b class="c-gr">eth0</b> and the Mac’s NAT.</p>
       <p>Setting <code>--noproxy</code> doesn’t help: nftables redirects the socket anyway, and a TLS connection with no name is refused. A denied name gets <b>NXDOMAIN</b> from the DNS stub, so it never even resolves.</p>
@@ -1153,8 +1209,8 @@ const CH = [
       ['<code>psql db.internal:5432</code>', '', () => request('db', {cmd: 'psql -h db.internal'}), C.teal],
       ['open localhost:8642', '', inbound, C.pink],
     ]},
-  {id: 'policy', title: 'Policy: allow, deny, or ask', color: C.amber, cam: [V(10, 15, 27), V(5.8, 2.4, 0.6)],
-    labels: ['gate', 'service', 'vsock', 'workload', 'dest-*'],
+  {id: 'policy', title: 'Policy: allow, deny, or ask', color: C.cyan, cam: [V(10, 15, 27), V(5.8, 2.4, 0.6)],
+    labels: ['gate', 'dest-*'],
     lede: 'A rule only ever says <b class="c-gr">allow</b> or <b class="c-rd">deny</b>. <b class="c-am">Ask</b> is what happens when no rule matches: the request is <b>held</b> and a card appears. Your answers become this run’s own rules.',
     body: `<p>The host merges the rules from every source and pushes the table to the supervisor as a <b>policy frame</b> over vsock 1024. The <b>first matching rule wins</b>, and stronger sources come first, so the run’s <b class="c-am">decisions.yaml</b> is checked before anything you pulled.</p>
       <p>A held request sends its question up the same socket. <b>Once</b> answers only this request; <b>always</b> writes a rule to <code>~/.lns/runs/agent/decisions.yaml</code>. No answer in 60 s means <b class="c-rd">denied</b>, and the question stays listed.</p>
@@ -1165,8 +1221,8 @@ const CH = [
       ['Clear decisions', '', () => { S.decisions = {http: [], tcp: []}; log('decisions.yaml cleared'); refresh(); }],
       ['<code>lns sandbox save</code>', '', saveDecisions, C.pink],
     ]},
-  {id: 'connector', title: 'Connectors: secrets stay out', color: C.gold, cam: [V(-3.2, 16.5, 25), V(-2.4, 2.4, -3)],
-    labels: ['vault', 'service', 'vsock', 'gate', 'workload', 'dest-github'],
+  {id: 'connector', title: 'Connectors: secrets stay out', color: C.cyan, cam: [V(-3.2, 16.5, 25), V(-2.4, 2.4, -3)],
+    labels: ['vault', 'service', 'gate', 'dest-github'],
     lede: 'The workload holds a <b>placeholder</b>. The real token stays on your Mac until you grant it to this run. Then the proxy swaps it in on the wire, only for the domain it belongs to.',
     body: `<p>Installing, connecting and granting are three separate facts. <b>Installed</b> (this machine) means its destinations stop guessing and <b>ask</b>. <b>Connected</b> (this machine) means you gave it a token, in a terminal, with no echo. <b>Granted</b> (<i>this run</i>) means the method’s egress opens and its injection is armed.</p>
       <p>On grant the service sends the value down vsock 1024 to the supervisor’s proxy. That is a root process the workload cannot read or trace, and it is the only place the value exists in the guest. The workload’s <code>$GH_TOKEN</code> is <code>ghp_LNSPLACEHOLDER…</code>, and the proxy adds <code>Authorization: Bearer</code> to requests for <b>api.github.com</b>, and nowhere else.</p>
@@ -1179,8 +1235,8 @@ const CH = [
       ['<code>echo $GH_TOKEN</code>', '', () => term('connector', `<span class="pr">guest$</span> echo $GH_TOKEN\n${S.conn.granted ? '<span class="gd">ghp_LNSPLACEHOLDER000000000000</span> <span class="cm"># never the real one</span>' : '<span class="cm">(empty — nothing granted to this run)</span>'}`), C.gold],
       ['<code>forget</code>', '', forgetConnector, C.red],
     ]},
-  {id: 'mixin', title: 'Mixins: compose a sandbox', color: C.pink, cam: [V(1.5, 15, 29), V(0, 5.4, -0.4)],
-    labels: ['shell', 'workload', 'gate', 'dest-*'],
+  {id: 'mixin', title: 'Mixins: compose a sandbox', color: C.cyan, cam: [V(1.5, 15, 29), V(0, 5.4, -0.4)],
+    labels: [],
     lede: 'A mixin is a capability you layer onto a sandbox: a toolchain, a provider, a set of approved hosts, a config directory. The sandbox stays neutral, and <b>each run</b> chooses its mixins.',
     body: `<p>Toggle a layer on the right. Mixins resolve when a run <b>launches</b>, so each change relaunches the run with a new <code>--mixin</code> line. Watch the tool shelf, the beacons and the merged view change.</p>
       <p>Precedence runs weakest to strongest: <b>the sandbox</b> &lt; its <code>spec.mixins</code> &lt; <code>--mixin</code> flags &lt; a <b class="c-gd">granted connector</b> &lt; <b class="c-am">the run’s decisions</b>. Env merges per key. Egress rules union. A mount path is one claim, and the last one displaces the rest. Scripts append.</p>
@@ -1196,6 +1252,7 @@ CH.forEach((c, i) => c.n = String(i + 1).padStart(2, '0'));
 let current = CH[0];
 
 async function sendAll() {
+  stage([coreP, GATE, ...Object.values(DEST).map(d => d.pos.clone().add(V(0, d.h, 0)))]);
   const ks = Object.keys(DEST);
   for (const k of ks) { request(k, {cmd: k === 'db' ? 'psql -h db.internal' : k === 'github' ? 'gh api user' : undefined}); await sleep(0.5); }
 }
@@ -1213,6 +1270,7 @@ function refreshPanel() {
   const scrolls = [...rp.querySelectorAll('.scroll')].map(s => s.scrollTop);
   rp.innerHTML = f();
   rp.querySelectorAll('.scroll').forEach((s, i) => s.scrollTop = scrolls[i] || 0);
+  rp.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { overviewOpen = b.dataset.open === '1'; refreshPanel(); });
   rp.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { overviewTab = b.dataset.tab; refreshPanel(); });
   rp.querySelectorAll('[data-ch]').forEach(l => { l.style.cursor = 'pointer'; l.onclick = () => go(CH.findIndex(c => c.id === l.dataset.ch)); });
   rp.querySelectorAll('[data-part]').forEach(r => {
@@ -1236,8 +1294,8 @@ function refreshActs() {
   current.acts().forEach(([html, cls, fn, color]) => {
     const b = document.createElement('button');
     b.className = 'btn ' + cls;
-    b.innerHTML = (color && !cls.includes('pri') ? `<span class="dot" style="--c:${color}"></span>` : '') + html;
-    b.onclick = () => { stopTour(); fn(); setTimeout(refreshActs, 50); };
+    b.innerHTML = html;
+    b.onclick = () => { stopTour(); beginDemo(); Promise.resolve(fn()).finally(() => { endDemo(); refreshActs(); }); setTimeout(refreshActs, 50); };
     box.appendChild(b);
   });
 }
@@ -1294,6 +1352,35 @@ function flyTo(pos, tgt, dur = 1.7) {
   }, easeIO);
 }
 controls.addEventListener('start', () => { camTween = null; });
+
+// Demo focus: while a demo runs, labels fade and the camera frames only the parts involved.
+let demoN = 0, demoT;
+const wp = p => p.isVector3 ? p.clone() : p.getWorldPosition(new THREE.Vector3());
+function beginDemo() { demoN++; clearTimeout(demoT); $('#labels').classList.add('demo'); }
+function endDemo() {
+  demoN = Math.max(0, demoN - 1);
+  if (demoN) return;
+  clearTimeout(demoT);
+  demoT = setTimeout(() => { if (demoN) return; $('#labels').classList.remove('demo'); flyTo(...camFor(current), 1.4); }, 2200);
+}
+function fitDist(r) {
+  const narrow = innerWidth < 900, vf = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const free = narrow ? 0.95 : Math.max(0.35, (innerWidth - 780) / innerWidth);
+  const hf = Math.atan(Math.tan(vf) * camera.aspect * free);
+  const vfe = narrow ? Math.atan(Math.tan(vf) * 0.5) : Math.atan(Math.tan(vf) * 0.82);
+  return clamp(r / Math.tan(Math.min(hf, vfe)) * 1.08, 7, 70);
+}
+function stage(pts, minR = 2.6) {
+  if (!demoN) return;
+  const box = new THREE.Box3().setFromPoints(pts.map(wp));
+  const c = box.getCenter(new THREE.Vector3());
+  const r = Math.max(minR, box.getSize(new THREE.Vector3()).length() / 2);
+  const [cp, ct] = camFor(current);
+  const dir = cp.clone().sub(ct).normalize();
+  flyTo(c.clone().add(dir.multiplyScalar(fitDist(r))), c, 1.1);
+}
+const VMFOCUS = () => [core.position.clone().add(V(-1.3, 1.4, 0.6)), GATE.clone().add(V(0, 1.4, 0)), NIC.clone().add(V(0.6, -1.2, 0))];
+const VMBOX = [V(-VM.w / 2, VM.floor, -VM.d / 2), V(VM.w / 2, VM.top, VM.d / 2)];
 let labelsOn = true;
 function applyLabels() {
   const want = current.labels;
@@ -1301,11 +1388,11 @@ function applyLabels() {
   allLabels.forEach(L => {
     if (L.o.parent === null) return;
     let vis;
-    if (!L.part) vis = current.id === 'overview' || current.id === 'network';
-    else vis = show(L.part) || L.part === 'host';
+    if (!L.part) vis = current.id === 'network';
+    else vis = show(L.part);
     if (LAYERS.some(x => x.label === L)) vis = current.id === 'mixin';
     if (L === precLabel) vis = current.id === 'mixin';
-    if (Object.values(chips).some(c => c.L === L)) vis = Object.values(chips).find(c => c.L === L).on && current.id !== 'overview';
+    if (Object.values(chips).some(c => c.L === L)) vis = Object.values(chips).find(c => c.L === L).on && (current.id === 'supervisor' || current.id === 'mixin');
     if (L === ghost.userData.label) vis = true;
     if (!labelsOn) vis = false;
     L.el.classList.toggle('off', !vis);
@@ -1333,7 +1420,7 @@ function go(i) {
 // ─────────────────────────────────────────────────────────────── tour
 let touring = false, tourTimer = null;
 const TOUR_DEMO = {
-  overview: () => request('npm'),
+  overview: () => request('claude', {cmd: 'claude -p "fix the tests"'}),
   supervisor: () => relaunch('lns run'),
   mounts: async () => { await editOnHost(); await catEnv(); },
   volumes: async () => { await writeFile('ws'); await writeFile('upper'); },
@@ -1352,7 +1439,9 @@ async function startTour() {
     await sleep(1.9);
     if (!touring) break;
     const t0 = performance.now();
+    beginDemo();
     await Promise.race([TOUR_DEMO[current.id]?.(), sleep(14)]);
+    endDemo();
     await sleep(Math.max(2.5, 6 - (performance.now() - t0) / 1000));
     i = (i + 1) % CH.length;
   }
@@ -1454,7 +1543,8 @@ function tick(dt) {
   const alive = S.vm === 'running';
   ring.userData.t1.rotation.z += dt * (alive ? 0.6 : 0);
   ring.userData.t2.rotation.z -= dt * (alive ? 0.35 : 0);
-  if (alive) { coreMesh().rotation.y += dt * 0.5; coreMesh().rotation.x = Math.sin(t * 0.7) * 0.15; core.position.y = coreP.y + Math.sin(t * 1.4) * 0.06; }
+  clawd.update(dt);
+  shellMat.uniforms.uK.value = lerp(shellMat.uniforms.uK.value, demoN ? 0.32 : 1, Math.min(1, dt * 3));
   coreLight.position.copy(core.position).add(V(0, 0.2, 0.4));
   svc.userData.rings.forEach((r, i) => { if (!booting) r.material.color.copy(col(C.cyan, 1.2 + 0.8 * Math.max(0, Math.sin(t * 2 - i * 0.8)))); });
   keyObj.rotation.y = t * 0.9; keyObj.position.y = 2.1 + Math.sin(t * 1.6) * 0.08;
@@ -1494,7 +1584,6 @@ function render() {
   composer.render();
   labelRenderer.render(scene, camera);
 }
-const coreMesh = () => core.children[0];
 function refreshWorldBeacon(d) {
   const v = evaluate(d);
   const c = v.rule?.offer ? C.gold : VCOL[v.verdict];
@@ -1519,4 +1608,4 @@ go(start);
 frame();
 window.__lab = {camera, controls, async advance(sec, step = 1 / 30) { for (let t = 0; t < sec; t += step) { tick(step); await new Promise(r => setTimeout(r, 0)); } render(); }, go, S, request, get current() { return current.id; }};
 requestAnimationFrame(() => setTimeout(() => { $('#loading').classList.add('done'); setTimeout(() => hint('Drag to orbit · hover anything · → next chapter'), 900); }, 350));
-setTimeout(() => { if (current.id === 'overview' && !touring) request('npm', {cmd: 'npm ci'}); }, 2600);
+setTimeout(() => { if (current.id === 'overview' && !touring) { clawd.mood('happy', 2.4).say('hi! I’m Claude Code, sandboxed', {dur: 3.4}); } }, 2200);

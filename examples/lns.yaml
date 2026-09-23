@@ -3,7 +3,7 @@ kind: sandbox
 name: agent
 spec:
   image: node:22-slim
-  command: node server.js
+  command: claude
   workdir: /workspace
   resources:
     cpu: 2

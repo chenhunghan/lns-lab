@@ -12,11 +12,14 @@ import {VerticalTiltShiftShader} from 'three/addons/shaders/VerticalTiltShiftSha
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {makeClawd} from './clawd.js?v=2';
 
 export {THREE, CSS2DObject};
 export const C = {
-  cyan:'#7fe3ff', amber:'#ffb454', green:'#5ee89a', red:'#ff5d6c', gold:'#ffd166', violet:'#a78bfa',
-  pink:'#ff8fd1', teal:'#5eead4', blue:'#7aa7ff', lime:'#c3f36b', orange:'#ff9f43', white:'#eef2fa', grey:'#8b94ad',
+  // three families: cyan = lns itself, orange = the workload, ice = your files and data;
+  // green / red / yellow only ever mean allow / deny / ask-or-secret.
+  cyan:'#7fe3ff', orange:'#e8875f', ice:'#b9c8e8', green:'#5ee89a', red:'#ff6b76', amber:'#ffc857', gold:'#ffc857',
+  violet:'#8d9cc4', pink:'#b9c8e8', teal:'#b9c8e8', blue:'#b9c8e8', lime:'#b9c8e8', white:'#eef2fa', grey:'#8b94ad',
 };
 export const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -95,7 +98,7 @@ scene.add(sun);
 const rim = new THREE.DirectionalLight('#ffb98a', 0.45);
 rim.position.set(20, 8, -14);
 scene.add(rim);
-export const vmLight = new THREE.PointLight(C.cyan, 16, 13, 1.6);
+export const vmLight = new THREE.PointLight(C.cyan, 9, 13, 1.6);
 vmLight.position.set(0, 4.2, 0.5);
 scene.add(vmLight);
 export const coreLight = new THREE.PointLight(C.orange, 10, 7, 1.8);
@@ -110,15 +113,15 @@ export const emi = (hex, i = 1.2, base = '#141a28') => std(base, {emissive: new 
 export function fresnelMat(hex, opacity = 1) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
-    uniforms: {uC: {value: new THREE.Color(hex)}, uO: {value: opacity}, uT: time},
+    uniforms: {uC: {value: new THREE.Color(hex)}, uO: {value: opacity}, uK: {value: 1}, uT: time},
     vertexShader: `varying vec3 vN; varying vec3 vW;
       void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix)*normal); gl_Position = projectionMatrix*viewMatrix*w; }`,
-    fragmentShader: `uniform vec3 uC; uniform float uO; uniform float uT; varying vec3 vN; varying vec3 vW;
+    fragmentShader: `uniform vec3 uC; uniform float uO; uniform float uK; uniform float uT; varying vec3 vN; varying vec3 vW;
       void main(){
         vec3 v = normalize(cameraPosition - vW);
         float f = pow(1. - abs(dot(normalize(vN), v)), 3.);
         float scan = smoothstep(.985, 1., sin(vW.y*7. - uT*1.3)*.5+.5);
-        float a = (.03 + f*.42 + scan*.06) * uO;
+        float a = (.03 + f*.42 + scan*.06) * uO * uK;
         gl_FragColor = vec4(uC*(.35 + f*1.5 + scan*1.2), a);
       }`,
   });
@@ -266,7 +269,7 @@ export const vmLabel = label('microVM · run “agent”', {kicker: 'guest · 2 
 export const layers = {};
 {
   const W = VM.w - 0.9, D = VM.d - 0.9;
-  const kern = new THREE.Mesh(new RoundedBoxGeometry(W + 0.3, 0.22, D + 0.3, 2, 0.06), emi('#3858ff', 0.55, '#0f1530'));
+  const kern = new THREE.Mesh(new RoundedBoxGeometry(W + 0.3, 0.22, D + 0.3, 2, 0.06), emi('#46609a', 0.45, '#10151f'));
   kern.position.y = 0.97; kern.castShadow = kern.receiveShadow = true;
   vmInner.add(kern);
   layers.kernel = kern;
@@ -274,10 +277,10 @@ export const layers = {};
     text: 'The VM boots its own kernel (a pinned Kata build). A workload that exploits a kernel bug is exploiting the guest’s kernel, not your Mac’s.'});
   label('guest kernel', {kicker: 'linux 6.18', color: C.blue, cls: 'sm', at: V(W / 2 - 0.6, 1.02, D / 2 + 0.2), parent: vmInner, part: 'kernel'});
 
-  const cols = ['#5b43d6', '#7456f0', '#8f73ff'];
+  const cols = ['#34425f', '#3f4f70', '#4b5d82'];
   layers.image = [];
   cols.forEach((c, i) => {
-    const m = new THREE.Mesh(new RoundedBoxGeometry(W, 0.12, D, 2, 0.04), emi(c, 0.45, '#1a1535'));
+    const m = new THREE.Mesh(new RoundedBoxGeometry(W, 0.12, D, 2, 0.04), emi(c, 0.35, '#151a26'));
     m.position.y = 1.18 + i * 0.16;
     m.castShadow = m.receiveShadow = true;
     vmInner.add(m);
@@ -295,33 +298,25 @@ export const layers = {};
     text: 'One extra composefs layer lns adds on top of the image: the static lns-supervisor, the nft binary, provisioned tools, the proxy CA and every fileset. It is read-only to the workload.'});
   label('/.lens runtime layer', {kicker: 'supervisor · tools · filesets', color: C.cyan, cls: 'sm', at: V(0.4, 1.7, D / 2 + 0.05), parent: vmInner, part: 'runtime'});
 
-  const upMat = new THREE.MeshStandardMaterial({color: '#3a2a12', emissive: new THREE.Color(C.amber), emissiveIntensity: 0.35, transparent: true, opacity: 0.78, roughness: 0.4});
+  const upMat = new THREE.MeshStandardMaterial({color: '#2e2418', emissive: new THREE.Color(C.orange), emissiveIntensity: 0.22, transparent: true, opacity: 0.78, roughness: 0.4});
   const up = new THREE.Mesh(new RoundedBoxGeometry(W, 0.1, D, 2, 0.04), upMat);
   up.position.y = 1.8; up.receiveShadow = true;
   vmInner.add(up);
   layers.upper = up;
-  part('upper', up, {title: 'The writable layer', kicker: 'overlay upper · upper.img', color: C.amber, chapter: 'volumes',
+  part('upper', up, {title: 'The writable layer', kicker: 'overlay upper · upper.img', color: C.orange, chapter: 'volumes',
     text: 'Every write that isn’t to a mount lands here: an ext4 image (~/.lns/runs/<id>/upper.img, 10Gi by default) as the overlay’s upper directory. It survives lns stop/start and is deleted by lns rm.'});
-  label('writable layer', {kicker: 'overlay upper · /dev/vda', color: C.amber, cls: 'sm', at: V(W / 2 - 1.1, 1.85, -D / 2 + 0.1), parent: vmInner, part: 'upper'});
+  label('writable layer', {kicker: 'overlay upper · /dev/vda', color: C.orange, cls: 'sm', at: V(W / 2 - 1.1, 1.85, -D / 2 + 0.1), parent: vmInner, part: 'upper'});
 }
 export const SURF = 1.86;   // top of the writable layer, where the workload's filesystem "stands"
 
-// The workload and the supervisor ring around it.
+// The workload — a little Claude Code — and the supervisor ring around it.
 export const core = new THREE.Group();
-core.position.set(-0.7, 3.35, 0.3);
+core.position.set(-0.7, SURF + 0.72, 0.3);
 vmInner.add(core);
-export const coreMat = new THREE.MeshStandardMaterial({color: '#2a1606', emissive: new THREE.Color(C.orange), emissiveIntensity: 1.6, roughness: 0.3, metalness: 0.2});
-export const coreMesh = new THREE.Mesh(new RoundedBoxGeometry(0.95, 0.95, 0.95, 3, 0.16), coreMat);
-coreMesh.castShadow = true;
-core.add(coreMesh);
-{
-  const inner = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32, 1), glow(C.orange, 2.4));
-  core.add(inner);
-  core.userData.inner = inner;
-  part('workload', core, {title: 'The workload', kicker: 'sh -c <command> · uid 65534', color: C.orange, chapter: 'supervisor',
-    text: 'Your agent, command or image entrypoint. It runs as the unprivileged “sandbox” user (unless the image says otherwise), with CAP_NET_ADMIN and CAP_NET_RAW dropped even as root, so it cannot rewrite the firewall.'});
-  label('workload', {kicker: 'your agent · uid sandbox', color: C.orange, at: V(0, 0.95, 0), parent: core, part: 'workload'});
-}
+export const clawd = makeClawd(core);
+part('workload', core, {title: 'Claude Code — the workload', kicker: 'sh -c claude · uid 65534', color: C.orange, chapter: 'supervisor',
+  text: 'The demo agent: Claude Code, running as the unprivileged “sandbox” user. Watch its face. Every file it touches and every request it makes goes through the mounts and the proxy gate you see here. CAP_NET_ADMIN and CAP_NET_RAW are dropped even for root, so it cannot rewrite the firewall.'});
+label('Claude Code', {kicker: 'the workload · uid sandbox', color: C.orange, at: V(-1.05, 0.95, 0), parent: core, part: 'workload'});
 export const ring = new THREE.Group();
 ring.position.copy(core.position);
 vmInner.add(ring);
@@ -432,12 +427,12 @@ function port(size, color) {
   return g;
 }
 export const NIC = V(VM.w / 2, 3.3, 0);
-export const nic = port(V(0.36, 0.7, 1.0), C.green);
+export const nic = port(V(0.36, 0.7, 1.0), C.cyan);
 nic.position.copy(NIC);
 vmInner.add(nic);
-part('nic', nic, {title: 'eth0 · virtio-net', kicker: 'NAT’d by the Mac', color: C.green, chapter: 'network',
+part('nic', nic, {title: 'eth0 · virtio-net', kicker: 'NAT’d by the Mac', color: C.cyan, chapter: 'network',
   text: 'The guest’s one network card. On macOS it is attached to Virtualization.framework’s NAT, and the guest gets its address by DHCP. The only traffic that reaches it is traffic the proxy has already let through.'});
-label('eth0', {kicker: 'virtio-net', color: C.green, cls: 'sm', at: V(0.3, 0.55, 0), parent: nic, part: 'nic'});
+label('eth0', {kicker: 'virtio-net', color: C.cyan, cls: 'sm', at: V(0.3, 0.55, 0), parent: nic, part: 'nic'});
 
 export const VSOCK = V(-2.6, 3.05, -VM.d / 2);
 export const vsock = port(V(1.5, 0.62, 0.3), C.cyan);
@@ -514,9 +509,9 @@ export let cliScreen;
   cliScreen.position.set(0, 1.9, 0.075);
   cli.add(base, neck, fr, cliScreen);
   cli.rotation.y = 0.35;
-  part('cli', cli, {title: 'lns — the CLI', kicker: 'a thin client', color: C.green, chapter: 'supervisor',
+  part('cli', cli, {title: 'lns — the CLI', kicker: 'a thin client', color: C.cyan, chapter: 'supervisor',
     text: 'lns parses your command and your lns.yaml, then asks lns-service to do the work over a local Unix socket. It shows the run banner, and it never boots anything itself.'});
-  label('lns', {kicker: 'CLI', color: C.green, at: V(-1.3, 3.05, 0), parent: cli, part: 'cli'});
+  label('lns', {kicker: 'CLI', color: C.cyan, at: V(-1.3, 3.05, 0), parent: cli, part: 'cli'});
 }
 export function setCliScreen(lines) { cliScreen.material.map.dispose(); cliScreen.material.map = screenTex(lines); }
 
@@ -574,9 +569,9 @@ export const cache = new THREE.Group();
 cache.position.set(-13.2, HOST_TOP, 1.6);
 scene.add(cache);
 {
-  const cols = ['#5b43d6', '#7456f0', '#8f73ff', '#2a8fa8'];
+  const cols = ['#34425f', '#3f4f70', '#4b5d82', '#56698f'];
   cols.forEach((c, i) => {
-    const m = new THREE.Mesh(new RoundedBoxGeometry(1.9 - i * 0.12, 0.34, 1.5 - i * 0.08, 2, 0.06), emi(c, 0.5, '#161433'));
+    const m = new THREE.Mesh(new RoundedBoxGeometry(1.9 - i * 0.12, 0.34, 1.5 - i * 0.08, 2, 0.06), emi(c, 0.35, '#151a26'));
     m.position.y = 0.2 + i * 0.38;
     m.rotation.y = (i % 2 ? 0.08 : -0.06);
     m.castShadow = true;
@@ -591,7 +586,7 @@ export const folder = new THREE.Group();
 folder.position.set(-8.6, HOST_TOP, -1.1);
 scene.add(folder);
 {
-  const fm = std('#1d3a3a', {emissive: new THREE.Color(C.teal), emissiveIntensity: 0.18, metalness: 0.2, roughness: 0.5});
+  const fm = std('#262f40', {emissive: new THREE.Color(C.ice), emissiveIntensity: 0.1, metalness: 0.2, roughness: 0.5});
   const back = new THREE.Mesh(new RoundedBoxGeometry(2.4, 1.7, 0.12, 2, 0.05), fm);
   back.position.set(0, 0.95, -0.5);
   const tab = new THREE.Mesh(new RoundedBoxGeometry(0.9, 0.3, 0.12, 2, 0.05), fm);
@@ -629,7 +624,7 @@ export const gitfile = new THREE.Group();
 gitfile.position.set(-11.4, HOST_TOP, 5.0);
 scene.add(gitfile);
 {
-  const m = new THREE.Mesh(new RoundedBoxGeometry(0.9, 1.15, 0.08, 2, 0.04), std('#20291a', {emissive: new THREE.Color(C.lime), emissiveIntensity: 0.3}));
+  const m = new THREE.Mesh(new RoundedBoxGeometry(0.9, 1.15, 0.08, 2, 0.04), std('#262f40', {emissive: new THREE.Color(C.ice), emissiveIntensity: 0.2}));
   m.position.y = 0.6; m.rotation.x = -0.25; m.castShadow = true;
   gitfile.add(m);
   gitfile.userData.mat = m.material;
@@ -647,19 +642,19 @@ scene.add(browser);
   const sc = new THREE.Mesh(new THREE.PlaneGeometry(2.05, 1.2), new THREE.MeshBasicMaterial({map: canvasTex(400, 240, (g, w, h) => {
     g.fillStyle = '#0c1220'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#1b2438'; g.fillRect(0, 0, w, 40);
-    ['#ff5d6c', '#ffb454', '#5ee89a'].forEach((c, i) => { g.fillStyle = c; g.beginPath(); g.arc(20 + i * 20, 20, 6, 0, 7); g.fill(); });
+    ['#56658a', '#56658a', '#56658a'].forEach((c, i) => { g.fillStyle = c; g.beginPath(); g.arc(20 + i * 20, 20, 6, 0, 7); g.fill(); });
     g.fillStyle = '#0c1220'; g.fillRect(90, 10, 290, 20);
     g.fillStyle = '#9ea8c2'; g.font = '14px monospace'; g.fillText('localhost:8642', 100, 25);
-    g.fillStyle = '#7fe3ff'; g.fillRect(30, 80, 180, 14); g.fillStyle = '#3a4560'; g.fillRect(30, 110, 300, 10); g.fillRect(30, 130, 260, 10); g.fillRect(30, 150, 280, 10);
+    g.fillStyle = '#9fb0d0'; g.fillRect(30, 80, 180, 14); g.fillStyle = '#3a4560'; g.fillRect(30, 110, 300, 10); g.fillRect(30, 130, 260, 10); g.fillRect(30, 150, 280, 10);
   }), toneMapped: false}));
   sc.position.set(0, 1.05, 0.06); sc.rotation.y = -0.4;
   sc.position.x += Math.sin(-0.4) * 0.06; sc.position.z = Math.cos(-0.4) * 0.06;
   const st = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.1), std('#161d2b'));
   st.position.y = 0.2;
   browser.add(fr, sc, st);
-  part('browser', browser, {title: 'A published port', kicker: '127.0.0.1:8642 → guest :8642', color: C.pink, chapter: 'network',
+  part('browser', browser, {title: 'A published port', kicker: '127.0.0.1:8642 → guest :8642', color: C.cyan, chapter: 'network',
     text: 'spec.ports publishes a guest port on the host’s loopback. Each connection travels over vsock 1030 to the broker, which dials 127.0.0.1:<port> inside the guest, so a server bound to the guest’s loopback is reachable.'});
-  label('localhost:8642', {kicker: 'published port', color: C.pink, cls: 'sm', at: V(0, 1.95, 0), parent: browser, part: 'browser'});
+  label('localhost:8642', {kicker: 'published port', color: C.cyan, cls: 'sm', at: V(0, 1.95, 0), parent: browser, part: 'browser'});
 }
 
 export const nat = new THREE.Group();
@@ -670,16 +665,16 @@ scene.add(nat);
   b.position.y = 0.35; b.castShadow = true;
   nat.add(b);
   for (let i = 0; i < 4; i++) {
-    const l = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), glow(C.green, 2.4));
+    const l = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), glow(C.cyan, 1.8));
     l.position.set(-0.45 + i * 0.3, 0.45, 0.76);
     nat.add(l);
   }
   const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9), std('#2a3448'));
   ant.position.set(0.5, 1.1, -0.4);
   nat.add(ant);
-  part('nat', nat, {title: 'The Mac’s NAT', kicker: 'VZNATNetworkDeviceAttachment', color: C.green, chapter: 'network',
+  part('nat', nat, {title: 'The Mac’s NAT', kicker: 'VZNATNetworkDeviceAttachment', color: C.cyan, chapter: 'network',
     text: 'The guest NIC is attached to macOS’s built-in NAT (the vmnet DHCP pool). By the time a packet gets here, the supervisor’s proxy has already decided it may leave.'});
-  label('NAT', {kicker: 'macOS vmnet', color: C.green, cls: 'sm', at: V(0, 1.3, 0), parent: nat, part: 'nat'});
+  label('NAT', {kicker: 'macOS vmnet', color: C.cyan, cls: 'sm', at: V(0, 1.3, 0), parent: nat, part: 'nat'});
 }
 
 // ─────────────────────────────────────────────────────────────── the internet
@@ -715,15 +710,15 @@ for (const [k, d] of Object.entries(DEST)) {
   g.position.copy(d.pos);
   const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.5, 0.16, 40), std('#121827', {metalness: 0.5, roughness: 0.35}));
   pad.position.y = -0.44; pad.receiveShadow = true;
-  const padRing = new THREE.Mesh(new THREE.TorusGeometry(1.36, 0.025, 6, 60), glow(d.color, 1.3));
+  const padRing = new THREE.Mesh(new THREE.TorusGeometry(1.36, 0.025, 6, 60), glow('#56658a', 1.2));
   padRing.rotation.x = Math.PI / 2; padRing.position.y = -0.36;
   g.add(pad, padRing);
   let body;
   if (d.raw) {
-    body = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, d.h, 36), std('#131a28', {emissive: new THREE.Color(d.color), emissiveIntensity: 0.12, metalness: 0.5}));
-    for (let i = 0; i < 3; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.81, 0.02, 6, 48), glow(d.color, 1.3)); r.rotation.x = Math.PI / 2; r.position.y = -0.36 + 0.35 + i * 0.5; g.add(r); }
+    body = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, d.h, 36), std('#131a28', {emissive: new THREE.Color(C.ice), emissiveIntensity: 0.06, metalness: 0.5}));
+    for (let i = 0; i < 3; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.81, 0.02, 6, 48), glow('#56658a', 1.2)); r.rotation.x = Math.PI / 2; r.position.y = -0.36 + 0.35 + i * 0.5; g.add(r); }
   } else {
-    body = new THREE.Mesh(new RoundedBoxGeometry(1.5, d.h, 1.5, 3, 0.14), new THREE.MeshStandardMaterial({color: '#131a28', emissive: '#ffffff', emissiveMap: winTex(d.color), emissiveIntensity: 0.9, metalness: 0.4, roughness: 0.35}));
+    body = new THREE.Mesh(new RoundedBoxGeometry(1.5, d.h, 1.5, 3, 0.14), new THREE.MeshStandardMaterial({color: '#131a28', emissive: '#ffffff', emissiveMap: winTex('#ffe6c4'), emissiveIntensity: 0.55, metalness: 0.4, roughness: 0.35}));
   }
   body.position.y = -0.36 + d.h / 2;
   body.castShadow = true;
@@ -734,9 +729,9 @@ for (const [k, d] of Object.entries(DEST)) {
   scene.add(g);
   d.group = g; d.beacon = beacon;
   d.port = V(d.pos.x - 0.9, 1.8, d.pos.z);
-  part('dest-' + k, g, {title: d.host, kicker: d.note, color: d.color, chapter: 'network',
+  part('dest-' + k, g, {title: d.host, kicker: d.note, color: C.ice, chapter: 'network',
     text: d.raw ? 'Postgres doesn’t speak HTTP, so the proxy cannot read a host name or inject anything. It can only splice the stream through (an egress.tcp rule) or ask with a RAW card.' : 'An outside destination. Whether the workload may reach it is decided by the rule table in the supervisor’s proxy, before the packet ever leaves the VM.'});
-  d.label = label(d.host, {kicker: d.note, color: d.color, cls: 'mono', at: V(0, d.h + 0.9, 0), parent: g, part: 'dest-' + k});
+  d.label = label(d.host, {kicker: d.note, color: C.ice, cls: 'mono sm', at: V(0, d.h + 0.9, 0), parent: g, part: 'dest-' + k});
 }
 
 // ─────────────────────────────────────────────────────────────── pipes
@@ -757,21 +752,21 @@ export function pipe(key, pts, color, {r = 0.07, base = 0.14, tension = 0.3} = {
 }
 const at = (o, x, y, z) => o.position.clone().add(V(x, y, z));
 const svcPort = at(svc, 0.9, 2.3, 0);
-pipe('cli', [at(cli, 1.1, 1.7, 0.4), at(cli, 2.4, 2.5, 0.1), at(svc, -0.9, 2.2, 0.1)], C.green, {r: 0.05});
+pipe('cli', [at(cli, 1.1, 1.7, 0.4), at(cli, 2.4, 2.5, 0.1), at(svc, -0.9, 2.2, 0.1)], C.cyan, {r: 0.05});
 pipe('vs1024', [svcPort.clone().add(V(0, 0.35, 0)), V(-6.2, 3.5, -5.0), V(-3.4, 3.25, -4.2), VSOCK.clone().add(V(-0.45, 0.18, -0.05))], C.cyan, {r: 0.055});
 pipe('vs1029', [svcPort.clone(), V(-6.2, 3.05, -4.85), V(-3.0, 3.0, -4.15), VSOCK.clone().add(V(0, 0, -0.05))], C.cyan, {r: 0.055});
-pipe('vs1030', [svcPort.clone().add(V(0, -0.35, 0)), V(-6.2, 2.6, -4.7), V(-2.6, 2.75, -4.1), VSOCK.clone().add(V(0.45, -0.18, -0.05))], C.pink, {r: 0.055});
+pipe('vs1030', [svcPort.clone().add(V(0, -0.35, 0)), V(-6.2, 2.6, -4.7), V(-2.6, 2.75, -4.1), VSOCK.clone().add(V(0.45, -0.18, -0.05))], C.cyan, {r: 0.055});
 pipe('vault', [at(vault, -0.9, 1.0, 0), at(vault, -1.9, 1.6, 0.3), at(svc, 0.5, 1.2, -0.95)], C.gold, {r: 0.05});
 pipe('ws', [at(folder, 1.15, 1.0, -0.2), V(-6.1, 2.6, -1.4), SOCK.ws.clone().add(V(-0.2, 0, 0))], C.teal, {r: 0.1});
 pipe('data', [at(disk, 0.95, 0.6, 0), V(-6.3, 2.4, 2.2), SOCK.data.clone().add(V(-0.2, 0, 0))], C.blue, {r: 0.1});
 pipe('content', [at(cache, 0.95, 0.9, 0.3), V(-10.4, 1.1, 5.0), V(-6.0, 1.1, 4.0), V(-4.8, 1.25, 2.9)], C.violet, {r: 0.06, base: 0.1});
-pipe('port', [at(browser, -0.3, 1.3, -0.4), V(-7.2, 3.4, 1.4), at(svc, 0, 1.9, 0.95)], C.pink, {r: 0.05, base: 0.08});
-pipe('net', [NIC.clone().add(V(0.2, 0, 0)), V(6.0, 2.6, 0), V(7.0, HOST_TOP + 0.7, 0)], C.green, {r: 0.09});
+pipe('port', [at(browser, -0.3, 1.3, -0.4), V(-7.2, 3.4, 1.4), at(svc, 0, 1.9, 0.95)], C.cyan, {r: 0.05, base: 0.08});
+pipe('net', [NIC.clone().add(V(0.2, 0, 0)), V(6.0, 2.6, 0), V(7.0, HOST_TOP + 0.7, 0)], C.cyan, {r: 0.09});
 for (const [k, d] of Object.entries(DEST)) {
   const a = V(8.3, HOST_TOP + 0.5, 0);
   const b = d.port;
   const mid = a.clone().lerp(b, 0.5); mid.y = 2.8;
-  pipe('to-' + k, [a, mid, b], d.raw ? C.teal : '#8fb6ff', {r: 0.035, base: 0.07, tension: 0.5});
+  pipe('to-' + k, [a, mid, b], '#6f82a8', {r: 0.035, base: 0.06, tension: 0.5});
 }
 part('pipe-ws', pipes.ws.g, {title: 'virtio-fs share', kicker: 'bind · lns-bind-0', color: C.teal, chapter: 'mounts', text: 'The bind is served by the host over virtio-fs: live, and shareable by any number of guests at once.'});
 part('pipe-data', pipes.data.g, {title: 'virtio block disk', kicker: '/dev/vdc · volume', color: C.blue, chapter: 'volumes', text: 'A named volume is a whole disk image attached to one guest. That’s why a second concurrent run gets “volume in use”.'});

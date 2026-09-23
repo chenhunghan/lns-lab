@@ -12,4 +12,5 @@ spec:
         verdict: allow
   scripts:
     - when: pre-start
-      run: cd /workspace && npm ci
+      user: root
+      run: npm install -g @anthropic-ai/claude-code
