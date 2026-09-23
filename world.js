@@ -12,7 +12,7 @@ import {VerticalTiltShiftShader} from 'three/addons/shaders/VerticalTiltShiftSha
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {makeClawd} from './clawd.js?v=2';
+import {makeClawd} from './clawd.js?v=3';
 
 export {THREE, CSS2DObject};
 export const C = {

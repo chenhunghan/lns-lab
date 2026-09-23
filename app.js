@@ -3,7 +3,7 @@ import {
   parts, pickables, allLabels, label, vm, vmInner, shell, shellMat, shellEdges, layers, core, clawd, ring, procs, gate,
   gateScanMat, GATE, NIC, nic, VSOCK, vsock, SOCK, socks, plates, shelf, cli, setCliScreen, svc, vault, keyObj, cache,
   folder, disk, diskFill, gitfile, browser, nat, DEST, pipes, glow, vmLight, coreLight, SURF, VM, vmLabel, HOST_TOP,
-} from './world.js?v=2';
+} from './world.js?v=3';
 
 // ─────────────────────────────────────────────────────────────── small helpers
 const $ = s => document.querySelector(s);
@@ -219,7 +219,8 @@ LAYERS.forEach((L, i) => {
   L.g = g; L.mat = m.material; L.lines = lines; L.home = g.position.clone();
   L.label = label(L.name, {kicker: L.sub, color: L.color, cls: 'sm mono', at: V(-0.95, 1.45, 0), parent: g});
   L.label.el.addEventListener('click', e => { e.stopPropagation(); if (!L.fixed) toggleMixin(L.k); });
-  L.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), new THREE.MeshBasicMaterial({color: col(L.color, 2), toneMapped: false, transparent: true, opacity: 0}));
+  L.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), new THREE.MeshBasicMaterial({color: col(L.color, 2), toneMapped: false, transparent: true, opacity: 0, depthWrite: false}));
+  L.beam.visible = false;
   scene.add(L.beam);
   m.userData.card = L.k;
   pickables.push(m);
@@ -1572,6 +1573,7 @@ function tick(dt) {
     b.scale.set(1, top.distanceTo(bot), 1);
     b.lookAt(bot); b.rotateX(Math.PI / 2);
     b.material.opacity = lerp(b.material.opacity, cards.visible && L.on ? 0.55 + Math.sin(t * 3) * 0.15 : 0, 0.1);
+    b.visible = b.material.opacity > 0.01;
     L.g.position.y = L.home.y + Math.sin(t * 0.8 + L.home.x) * 0.08;
   });
 }
