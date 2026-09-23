@@ -1,0 +1,9 @@
+apiVersion: lns.run/v1
+kind: mixin
+name: team-egress
+spec:
+  egress:
+    http:
+      - match: api.linear.app
+        verdict: allow
+        description: approved during a run

@@ -1,0 +1,37 @@
+apiVersion: lns.run/v1
+kind: sandbox
+name: agent
+spec:
+  image: node:22-slim
+  command: node server.js
+  workdir: /workspace
+  resources:
+    cpu: 2
+    memory: 2Gi
+  volumes:
+    - type: bind
+      source: .
+      target: /workspace
+      exclude: [.env]
+    - type: volume
+      source: data
+      target: /opt/data
+  filesets:
+    - inline:
+        settings.json: |
+          {"theme":"dark"}
+      guestPath: /opt/app
+    - hostPath: ~/.gitconfig
+      guestPath: /etc/gitconfig
+      optional: true
+  ports:
+    - host: 8642
+      container: 8642
+  egress:
+    http:
+      - match: registry.npmjs.org
+        verdict: allow
+      - match: telemetry.evil.example
+        verdict: deny
+  mixins:
+    - ./mixins/node

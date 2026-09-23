@@ -1,0 +1,23 @@
+apiVersion: lns.run/v1
+kind: connector
+name: github
+spec:
+  serves:
+    - api.github.com
+    - github.com
+  methods:
+    - name: token
+      label: Personal access token
+      auth:
+        kind: token
+        help: Create one at github.com/settings/tokens
+      egress:
+        http:
+          - match: api.github.com
+            verdict: allow
+      credentials:
+        - envVar: GH_TOKEN
+          placeholder: ghp_LNSPLACEHOLDER000000000000
+          injections:
+            - kind: bearer_header
+              domain: api.github.com

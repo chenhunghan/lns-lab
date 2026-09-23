@@ -1,0 +1,10 @@
+apiVersion: lns.run/v1
+kind: mixin
+name: anthropic
+spec:
+  env:
+    ANTHROPIC_BASE_URL: https://api.anthropic.com
+  egress:
+    http:
+      - match: api.anthropic.com
+        verdict: allow

@@ -1,0 +1,15 @@
+apiVersion: lns.run/v1
+kind: mixin
+name: node
+spec:
+  tools:
+    - node@22
+  env:
+    NPM_CONFIG_CACHE: /opt/data/npm
+  egress:
+    http:
+      - match: "*.npmjs.org"
+        verdict: allow
+  scripts:
+    - when: pre-start
+      run: cd /workspace && npm ci

@@ -1,0 +1,10 @@
+apiVersion: lns.run/v1
+kind: mixin
+name: prod-settings
+spec:
+  filesets:
+    - inline:
+        settings.json: |
+          {"theme":"light","telemetry":false}
+      guestPath: /opt/app
+      owner: root
