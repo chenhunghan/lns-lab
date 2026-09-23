@@ -253,14 +253,31 @@ const ghost = new THREE.Group();
 }
 
 // ─────────────────────────────────────────────────────────────── the audit log
-const logEl = $('#log');
-function log(html, color) {
+const audit = [];
+const auditList = $('#audit-list'), auditChip = $('#audit-chip'), auditPanel = $('#audit-panel');
+function auditRow(e, fresh) {
   const d = document.createElement('div');
-  d.innerHTML = `<u>${clock()}</u> ` + html;
-  if (color) d.style.setProperty('--c', color);
-  logEl.appendChild(d);
-  while (logEl.children.length > 3) logEl.firstChild.remove();
+  d.className = 'audit-row' + (fresh ? ' new' : '');
+  if (e.color) d.style.setProperty('--c', e.color);
+  d.innerHTML = `<time>${e.t}</time><s></s><span>${e.html}</span>`;
+  return d;
 }
+function log(html, color) {
+  const e = {t: clock(), html, color};
+  audit.unshift(e);
+  if (audit.length > 80) audit.pop();
+  $('#audit-n').textContent = audit.length;
+  auditChip.style.setProperty('--c', color || '#6f7894');
+  auditChip.classList.remove('ping'); void auditChip.offsetWidth; auditChip.classList.add('ping');
+  if (!auditPanel.hidden) { auditList.querySelector('.audit-empty')?.remove(); auditList.prepend(auditRow(e, true)); while (auditList.children.length > 80) auditList.lastChild.remove(); }
+}
+function toggleAudit(open = auditPanel.hidden) {
+  auditPanel.hidden = !open;
+  auditChip.setAttribute('aria-expanded', open);
+  if (open) { auditList.innerHTML = ''; audit.length ? audit.forEach(e => auditList.appendChild(auditRow(e))) : auditList.innerHTML = '<p class="audit-empty">Nothing yet. Try a button in the chapter card.</p>'; }
+}
+auditChip.onclick = () => toggleAudit();
+$('#audit-x').onclick = () => toggleAudit(false);
 
 // ─────────────────────────────────────────────────────────────── state
 const S = {
@@ -346,7 +363,7 @@ function askCard({title, text, raw = false, kind = 'Approval · agent', buttons,
     requestAnimationFrame(() => { bar.style.transition = `transform ${timeout}s linear`; bar.style.transform = 'scaleX(0)'; });
     sec.textContent = left + 's';
     const iv = setInterval(() => { if (paused) return; left--; sec.textContent = left + 's'; if (left <= 0) finish('timeout'); }, 1000);
-    if (touring) setTimeout(() => finish((buttons && buttons[0][0]) || 'allow-always'), 4200);
+    if (touring) sleep(3.8).then(() => finish((buttons && buttons[0][0]) || 'allow-always'));
   });
   const p = cardQueue.then(run);
   cardQueue = p.catch(() => {});
@@ -616,7 +633,7 @@ async function request(k, {cmd, quiet = false} = {}) {
       burst(p.pos.clone(), C.red);
       clawd.mood('ouch', 3).say(d.raw ? 'refused… no rule lets me in' : '403 — the policy said no', {dur: 3.2});
       fx(p.pos.clone().add(V(0, 0.6, 0)), `denied · ${SRC[v.src]?.name || 'policy'}`, C.red);
-      log(`egress <b style="color:${C.red}">deny</b> ${d.host} <u>by ${SRC[v.src]?.name || 'policy'}</u>`);
+      log(`egress <b style="color:${C.red}">deny</b> ${d.host} <u>by ${SRC[v.src]?.name || 'policy'}</u>`, C.red);
       await p.along(W2G(), 0.8, 1, 0);
       burst(coreP.clone(), C.red, 0.8);
       p.die();
@@ -634,7 +651,7 @@ async function request(k, {cmd, quiet = false} = {}) {
       fx(p.pos.clone().add(V(0, 0.7, 0)), 'placeholder → real token', C.gold);
       log('proxy injected <b>bearer_header</b> for api.github.com', C.gold);
     }
-    log(`egress <b style="color:${C.green}">allow</b> ${d.host} <u>by ${SRC[v.src]?.name || 'your answer'}${v.once ? ' (once)' : ''}</u>`);
+    log(`egress <b style="color:${C.green}">allow</b> ${d.host} <u>by ${SRC[v.src]?.name || 'your answer'}${v.once ? ' (once)' : ''}</u>`, C.green);
     clawd.mood('think', 0).say(`allowed → ${d.host}`, {spin: true, dur: 90});
     stage([GATE, nat, d.pos.clone().add(V(0, d.h + 0.6, 0))], 4.4);
     hop(4);
@@ -1362,7 +1379,7 @@ function endDemo() {
   demoN = Math.max(0, demoN - 1);
   if (demoN) return;
   clearTimeout(demoT);
-  demoT = setTimeout(() => { if (demoN) return; $('#labels').classList.remove('demo'); flyTo(...camFor(current), 1.4); }, 2200);
+  demoT = setTimeout(() => { if (demoN || touring) return; $('#labels').classList.remove('demo'); flyTo(...camFor(current), 1.4); }, 2200);
 }
 function fitDist(r) {
   const narrow = innerWidth < 900, vf = THREE.MathUtils.degToRad(camera.fov) / 2;
@@ -1422,49 +1439,137 @@ function go(i, {fly = true} = {}) {
 let touring = false, tourId = 0, tourSkip = false;
 const towers = () => Object.values(DEST).map(d => d.pos.clone().add(V(0, d.h + 0.6, 0)));
 const BOOT_TOUR = [
-  ['lns run', 'It starts with one command. The <b>lns</b> CLI is a thin client: it hands the request to <b>lns-service</b> over a local socket.', () => [cli, svc], 3],
-  ['Prepare', '<b>lns-service</b> gathers everything the VM needs: the image layers, a kernel, a fresh writable disk, volume leases and tools.', () => [svc, cache, disk], 3.5],
-  ['Hypervisor', 'Apple’s <b>Virtualization.framework</b> creates the microVM, with one network card, a vsock, and a few virtio disks and shares.', () => VMBOX, 4.6],
-  ['Kernel', 'The VM boots <b>its own Linux kernel</b>, not your Mac’s. A kernel bug in here is a bug in the guest.', () => [layers.kernel, ...VMBOX.slice(0, 1)], 4],
-  ['lns-init', '<b>lns-init</b> is PID 1. It checks the root filesystem’s hash, then stacks it: <b>read-only image layers</b>, a <b>writable layer</b> on top, and your mounts.', () => VMBOX, 4.4],
-  ['Broker', 'The <b>session broker</b> brings up the network and serves terminal sessions over <b>vsock</b>, a host↔guest socket that isn’t a network.', () => [procs.broker, vsock, svc], 3.4],
-  ['Supervisor', '<b>lns-supervisor</b> locks the network with <b>nftables</b> and starts the <b>proxy gate</b>. The host pushes it the policy.', () => [ring, gate, GATE_KEY_POS], 3.6],
-  ['Scripts', 'Pre-start scripts run next, through the same gate. Here, one installs <b>Claude Code</b> from npm.', () => [core, gate, nat], 4],
-  ['Workload', 'Finally it drops root and starts the workload as an unprivileged user. Say hi to <b>Claude Code</b>.', () => [core], 3],
+  ['lns run', 'You type one command into the [[lns tool|cli]], and it asks a [[helper app|service]] on your computer to do the work.', () => [cli, svc], 3],
+  ['Prepare', 'The [[helper app|service]] gathers the files the sandbox needs from its [[cache|cache]].', () => [svc, cache], 3.5],
+  ['Hypervisor', 'Your computer creates the [[glass box|shell]], an empty virtual machine.', () => VMBOX, 4.6],
+  ['Kernel', 'The box starts [[its own operating system|kernel]], separate from yours.', () => [layers.kernel, ...VMBOX.slice(0, 1)], 4],
+  ['Files', 'It lays down [[read-only system files|image2]], with a [[scratch layer|upper]] on top for anything new.', () => VMBOX, 4.4],
+  ['Channel', 'A [[session helper|broker]] lets your terminal talk to the box through a [[private channel|vsock]].', () => [procs.broker, vsock, svc], 3.4],
+  ['Guard', 'A [[guard program|supervisor]] switches on the [[gate|gate]], so nothing gets out unchecked.', () => [ring, gate, GATE_KEY_POS], 3.6],
+  ['Setup', 'A setup script installs Claude Code, downloading it from [[npm|dest-npm]] through the gate.', () => [core, gate, nat, DEST.npm.group], 4],
+  ['Start', 'Finally [[Claude Code|workload]] starts, without admin rights.', () => [core], 3],
 ];
 const TOUR = [
-  {ch: 'overview', say: 'This is your Mac. <b>lns</b> runs an AI agent (here, <b>Claude Code</b>) inside a <b>microVM</b>: a tiny virtual machine with its own kernel.', labels: true},
-  {ch: 'overview', say: 'The glass box is the sandbox. Claude Code sees only what is mounted in, and every connection must pass the <b>proxy gate</b> on its wall.', focus: () => VMBOX, r: 5},
-  {ch: 'overview', say: 'Each tower is a destination. Its light shows what the gate would do: <b class="c-gr">allow</b>, <b class="c-rd">deny</b>, or <b class="c-gd">ask you</b>.', focus: () => [nat, ...towers()], r: 5},
-  {ch: 'overview', say: 'Watch Claude Code call its model. A mixin allows <b>api.anthropic.com</b>, so the gate lets it through.', run: () => request('claude', {cmd: 'claude -p "fix the tests"'}), hold: 2.5},
-  {ch: 'supervisor', say: 'Now let’s boot one from scratch, one step at a time.', focus: () => [cli, svc, ...VMBOX], hold: 3.5},
+  {ch: 'overview', say: 'The big dark [[platform|host]] stands for your computer.'},
+  {ch: 'overview', say: 'The [[glass box|shell]] on it is a sandbox: a small, separate computer called a microVM.', focus: () => VMBOX, r: 5},
+  {ch: 'overview', say: 'Inside the box lives [[Claude Code|workload]], an AI agent we want to keep contained.', focus: () => [core], r: 3.4},
+  {ch: 'overview', say: 'The [[gate|gate]] on the box’s wall is the only way out to the internet.', focus: () => [gate, nic], r: 3.6},
+  {ch: 'overview', say: 'These [[towers|dest-*]] are websites that Claude might try to reach.', focus: () => [nat, ...towers()], r: 5},
+  {ch: 'overview', say: 'Watch Claude ask its AI model a question, through the [[gate|gate]].', run: () => request('claude', {cmd: 'claude -p "fix the tests"'}), hold: 2.5},
+  {ch: 'supervisor', say: 'Now let’s watch the sandbox start up, one step at a time.', focus: () => [cli, svc, ...VMBOX], hold: 3.5},
   {ch: 'supervisor', boot: true},
-  {ch: 'mounts', say: 'Its files come from a few places. Your project folder is <b>bound</b> in, shared live: edit it on your Mac and Claude sees it instantly.', run: editOnHost},
-  {ch: 'mounts', say: '<code>.env</code> is <b>excluded</b>. The name is still there, but reading it is denied, so your secrets stay on your side.', run: catEnv},
-  {ch: 'volumes', say: 'A write to <code>/workspace</code> lands straight in your folder on the Mac.', run: () => writeFile('ws')},
-  {ch: 'volumes', say: 'A write anywhere else lands in the run’s own <b>writable layer</b>. <code>lns rm</code> deletes it; your folder and named volumes survive.', run: () => writeFile('upper')},
-  {ch: 'filesets', say: '<b>Filesets</b> are files shipped with the sandbox, copied in at boot as a <b>snapshot</b>, not a live share.', run: seedFilesets},
-  {ch: 'filesets', say: 'Edit the host’s <code>~/.gitconfig</code> now and the guest keeps its copy until the next boot.', run: editGitHost},
-  {ch: 'network', say: 'Inside the VM, nftables sends every connection to the proxy. <b>registry.npmjs.org</b> is allowed.', run: () => request('npm')},
-  {ch: 'network', say: '<b>telemetry.evil.example</b> is denied. The request dies at the gate and never leaves the VM.', run: () => request('evil')},
-  {ch: 'network', say: 'Trying to skip the proxy doesn’t work: nftables redirects the socket anyway.', run: bypass},
-  {ch: 'policy', say: '<b>api.linear.app</b> has no rule, so the request is <b>held</b> and a card asks you. Watch it get answered.', run: () => request('linear')},
-  {ch: 'policy', say: '“Always” wrote a rule into this run’s <b>decisions.yaml</b>, so the next request passes without asking.', run: () => request('linear'), hold: 2},
-  {ch: 'connector', say: 'Secrets never go inside. Install the <b>github</b> connector and connect a token. It stays on your Mac.', run: async () => { await installConnector(); await sleep(0.8); await connectConnector(); }},
-  {ch: 'connector', say: 'Granting it to <b>this run</b> sends the token to the proxy, a process Claude Code cannot read.', run: () => grantConnector(true)},
-  {ch: 'connector', say: 'Claude Code sends a <b>placeholder</b>. The proxy swaps in the real token, only for <b>api.github.com</b>.', run: () => request('github', {cmd: 'gh api user'})},
-  {ch: 'mixin', say: 'A sandbox is composed from <b>mixins</b>: a toolchain, a model provider, a set of approved hosts. Each run picks its own.', focus: () => [...LAYERS.map(L => L.g), ...VMBOX], r: 6, labels: true},
-  {ch: 'mixin', say: 'Add a mixin and the run relaunches with it. <code>team-egress.yaml</code> approves api.linear.app for everyone.', run: () => { if (!S.mix.team) return toggleMixin('team'); }, hold: 2.5},
-  {ch: 'overview', say: 'That’s lns: a real VM, explicit mounts, one gate for the network, and secrets that stay outside. Now explore on your own.', labels: true, hold: 6},
+  {ch: 'mounts', say: 'Your [[project folder|folder]] is shared into the box at [[/workspace|p-ws]].', focus: () => [folder, plates['p-ws']], r: 3.4},
+  {ch: 'mounts', say: 'When you edit a file on your computer, Claude sees the change right away.', run: editOnHost},
+  {ch: 'mounts', say: 'Your secret [[.env file|p-ws]] stays hidden from Claude, even inside the shared folder.', run: catEnv},
+  {ch: 'volumes', say: 'When Claude saves to [[/workspace|p-ws]], the file also appears in [[your folder|folder]].', run: () => writeFile('ws')},
+  {ch: 'volumes', say: 'Other files go to the box’s [[scratch layer|upper]], which is deleted along with the sandbox.', run: () => writeFile('upper')},
+  {ch: 'volumes', say: 'A [[volume|disk]] is a separate disk that keeps its data after the sandbox is gone.', focus: () => [disk, plates['p-data']], r: 3.4},
+  {ch: 'filesets', say: 'Some [[settings files|p-fs]] come packed with the sandbox and are copied in at start.', run: seedFilesets},
+  {ch: 'filesets', say: 'They are copies: changing [[the original|gitfile]] later does not change [[the copy inside|p-git]].', run: editGitHost},
+  {ch: 'network', say: 'Every connection Claude makes has to pass the [[gate|gate]] first.', focus: () => [core, gate, nic], r: 3.8},
+  {ch: 'network', say: 'Claude downloads a package from [[npm|dest-npm]], which is on the allow list.', run: () => request('npm')},
+  {ch: 'network', say: '[[This tracker|dest-evil]] is on the block list, so the gate stops the request.', run: () => request('evil')},
+  {ch: 'network', say: 'Even trying to sneak around the [[gate|gate]] does not work.', run: bypass},
+  {ch: 'policy', say: '[[This site|dest-linear]] is on no list, so the gate pauses and asks you.', run: () => request('linear')},
+  {ch: 'policy', say: 'You chose “always allow”, so next time [[it|dest-linear]] goes through without asking.', run: () => request('linear'), hold: 2},
+  {ch: 'connector', say: 'Your GitHub key is kept in a [[safe|vault]] on your computer, never inside the box.', run: async () => { await installConnector(); await sleep(0.8); await connectConnector(); }},
+  {ch: 'connector', say: 'When you allow it, the key goes to the [[gate|gate]], where Claude cannot read it.', run: () => grantConnector(true)},
+  {ch: 'connector', say: 'Claude sends a fake key, and the gate swaps in the real one on the way to [[GitHub|dest-github]].', run: () => request('github', {cmd: 'gh api user'})},
+  {ch: 'mixin', say: 'A sandbox is built from [[stacked layers|card:sandbox]], like recipe cards.', focus: () => [...LAYERS.map(L => L.g), ...VMBOX], r: 6},
+  {ch: 'mixin', say: 'Adding [[this card|card:team]] allows [[a new site|dest-linear]] for everyone who uses the sandbox.', run: () => { if (!S.mix.team) return toggleMixin('team'); }, hold: 2.5},
+  {ch: 'overview', say: 'That’s lns: a [[separate box|shell]] with one [[gate|gate]] out, and your secrets kept [[outside|vault]].', hold: 6},
 ];
 const capEl = $('#cap');
+
+// Pins: each [[term|part]] in a caption gets a number, and the same number points at the object in the scene.
+const PIN_ANCHOR = {
+  host: () => V(-16.2, 0.9, 7.6),
+  workload: () => core.position.clone().add(V(-1.25, 0.55, 0.2)),
+  kernel: () => V(VM.w / 2 - 0.9, 1.05, VM.d / 2 - 0.2),
+  image2: () => V(-VM.w / 2 + 0.7, 1.55, VM.d / 2 - 0.2),
+  runtime: () => V(-0.6, 1.7, VM.d / 2 - 0.2),
+  upper: () => V(VM.w / 2 - 1.6, SURF + 0.05, -VM.d / 2 + 0.7),
+};
+const refObj = k => k.startsWith('card:') ? LAYERS.find(l => l.k === k.slice(5))?.g : parts[k]?.obj;
+const BR_PTS = (() => {
+  const p = [], k = 0.28;
+  for (const sx of [-0.5, 0.5]) for (const sy of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) {
+    const c = V(sx, sy, sz);
+    p.push(c, V(sx - Math.sign(sx) * k, sy, sz), c, V(sx, sy - Math.sign(sy) * k, sz), c, V(sx, sy, sz - Math.sign(sz) * k));
+  }
+  return p;
+})();
+const BR_GEO = new THREE.BufferGeometry().setFromPoints(BR_PTS);
+let pins = [];
+function clearPins() {
+  pins.forEach(p => { scene.remove(p.o); p.el.remove(); if (p.br) scene.remove(p.br); });
+  pins = [];
+}
+function parseRefs(html) {
+  const refs = [];
+  const out = html.replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, (m, t, k) => {
+    let n = refs.findIndex(r => r.k === k);
+    if (n < 0) { refs.push({k, t}); n = refs.length - 1; }
+    return `<span class="ref" data-i="${n}"><i>${n + 1}</i>${t}</span>`;
+  });
+  return {out, refs};
+}
+function showPins(refs) {
+  clearPins();
+  refs.forEach((r, i) => {
+    const keys = r.k.endsWith('*') ? Object.keys(parts).filter(k => k.startsWith(r.k.slice(0, -1))) : [r.k];
+    keys.forEach((k, j) => {
+      const obj = refObj(k);
+      if (!obj) return;
+      const el = document.createElement('div');
+      el.className = 'pin';
+      el.innerHTML = `<span><i>${i + 1}</i>${j === 0 ? r.t : ''}</span>`;
+      const o = new CSS2DObject(el);
+      o.center.set(0, 1);
+      o.visible = false;
+      scene.add(o);
+      let br = null;
+      if (k !== 'host') {
+        br = new THREE.LineSegments(BR_GEO, new THREE.LineBasicMaterial({color: col('#ffffff', 2.2), toneMapped: false, transparent: true, opacity: 0, depthWrite: false}));
+        br.renderOrder = 20;
+        scene.add(br);
+      }
+      pins.push({k, obj, o, el, br, i, at: time.value + 0.35 + i * 0.75});
+    });
+  });
+}
+const _box = new THREE.Box3(), _c = new THREE.Vector3(), _sz = new THREE.Vector3();
+function updatePins(t) {
+  for (const p of pins) {
+    let shown = t >= p.at;
+    for (let n = p.obj; n && shown; n = n.parent) if (!n.visible || n.scale.x < 0.3) shown = false;
+    p.o.visible = shown;
+    if (p.br) p.br.visible = shown;
+    if (!shown) continue;
+    if (!p.lit) { p.lit = true; p.el.classList.add('on'); capEl.querySelector(`.ref[data-i="${p.i}"]`)?.classList.add('lit'); }
+    _box.setFromObject(p.obj);
+    _box.getCenter(_c); _box.getSize(_sz);
+    p.o.position.copy(PIN_ANCHOR[p.k]?.() || V(_c.x, _box.max.y + 0.12, _c.z));
+    if (p.br) {
+      p.br.position.copy(_c);
+      p.br.scale.set(Math.max(_sz.x, 0.3) + 0.3, Math.max(_sz.y, 0.3) + 0.3, Math.max(_sz.z, 0.3) + 0.3);
+      p.br.material.opacity = Math.min(1, (t - p.at) * 3) * (0.75 + Math.sin(t * 4) * 0.25);
+    }
+  }
+}
 function caption(kicker, html, i, n) {
+  const {out, refs} = parseRefs(html);
   $('#cap-k').textContent = kicker;
-  $('#cap-t').innerHTML = html;
+  $('#cap-t').innerHTML = out;
   $('#cap-p').textContent = n ? `${i + 1} / ${n}` : '';
   capEl.classList.remove('in'); void capEl.offsetWidth; capEl.classList.add('in');
+  showPins(refs);
+  capEl.querySelectorAll('.ref').forEach(r => {
+    r.onmouseenter = () => pins.filter(p => p.i === +r.dataset.i).forEach(p => p.el.classList.add('hot'));
+    r.onmouseleave = () => pins.forEach(p => p.el.classList.remove('hot'));
+  });
 }
-const readTime = html => clamp(html.replace(/<[^>]+>/g, '').split(/\s+/).length / 2.6, 4, 9);
+const readTime = html => clamp(html.replace(/\[\[([^|\]]+)\|[^\]]+\]\]/g, '$1').replace(/<[^>]+>/g, '').split(/\s+/).length / 2.4 + 1, 4.5, 9);
 async function hold(sec, id) {
   tourSkip = false;
   const bar = $('#cap-bar');
@@ -1492,7 +1597,7 @@ async function startTour(from = 0) {
     const ci = CH.findIndex(c => c.id === b.ch);
     if (CH[ci] !== current) { go(ci, {fly: !b.focus && !b.run && !b.boot}); await sleep(0.6); }
     const kick = `${current.n} · ${current.title.split(':')[0]}`;
-    $('#labels').classList.toggle('demo', !b.labels);
+    $('#labels').classList.add('demo');
     if (b.boot) {
       let shownAt = null, need = 0;
       await relaunch('lns run', {pace: async k => {
@@ -1529,6 +1634,7 @@ function stopTour() {
   $('#app').classList.remove('touring');
   $('#tour').classList.remove('on');
   capEl.hidden = true;
+  clearPins();
   $('#labels').classList.remove('demo');
   flyTo(...camFor(current), 1.4);
 }
@@ -1633,6 +1739,7 @@ function tick(dt) {
   ring.userData.t1.rotation.z += dt * (alive ? 0.6 : 0);
   ring.userData.t2.rotation.z -= dt * (alive ? 0.35 : 0);
   clawd.update(dt);
+  updatePins(t);
   shellMat.uniforms.uK.value = lerp(shellMat.uniforms.uK.value, demoN ? 0.32 : 1, Math.min(1, dt * 3));
   coreLight.position.copy(core.position).add(V(0, 0.2, 0.4));
   svc.userData.rings.forEach((r, i) => { if (!booting) r.material.color.copy(col(C.cyan, 1.2 + 0.8 * Math.max(0, Math.sin(t * 2 - i * 0.8)))); });

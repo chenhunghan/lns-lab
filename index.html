@@ -203,13 +203,28 @@ a{color:var(--cyan)}
 .step.on .n{color:#0d1322;opacity:.55}
 .step.seen:not(.on)::after{content:"";position:absolute;left:50%;bottom:4px;width:10px;height:2px;margin-left:-5px;background:#ffffff40}
 
-/* ─────────── audit log */
-.log{position:absolute;left:22px;bottom:18px;z-index:5;width:350px;height:52px;padding:6px 10px;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
-  font:400 10.6px/1.5 var(--mono);color:#98a2bd;-webkit-mask-image:linear-gradient(transparent,#000 45%);mask-image:linear-gradient(transparent,#000 45%)}
-.log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:login .35s ease-out}
-.log div b{font-weight:500;color:var(--c,#dfe5f3)}
-.log div u{text-decoration:none;color:#5e6886}
-@keyframes login{from{opacity:0;transform:translateY(6px)}}
+/* ─────────── audit log: a labelled button that opens the run's timeline */
+.audit{position:absolute;left:22px;bottom:18px;z-index:6;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.audit-chip{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px 0 12px;font-size:12.5px;font-weight:500;color:#dfe5f3;cursor:pointer}
+.audit-chip:hover{background:#1a2033f0}
+.audit-chip i{width:7px;height:7px;border-radius:1px;background:var(--c,#6f7894);transition:background .3s}
+.audit-chip.ping i{animation:ping 1s ease-out}
+@keyframes ping{0%{box-shadow:0 0 0 0 var(--c)}100%{box-shadow:0 0 0 8px transparent}}
+.audit-chip b{font:500 10.5px/1 var(--mono);color:var(--mute);background:#ffffff10;border-radius:3px;padding:3px 5px}
+.audit-panel{width:360px;max-height:min(360px,52vh);display:flex;flex-direction:column;padding:12px 12px 8px}
+.audit-panel h3{margin:0 0 8px;display:flex;align-items:baseline;gap:8px;font:600 10px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.audit-panel h3 em{font-style:normal;letter-spacing:.02em;text-transform:none;color:var(--dim);flex:1}
+.audit-panel h3 code{font-family:var(--mono)}
+.audit-panel .x{border:0;background:#ffffff10;color:#dfe5f3;width:22px;height:22px;border-radius:4px;font-size:14px;line-height:1;padding:0}
+.audit-list{overflow:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:#ffffff22 transparent}
+.audit-row{display:grid;grid-template-columns:52px 3px 1fr;gap:8px;align-items:start;padding:5px 4px;border-radius:4px;font-size:12px;line-height:1.4;color:#c9d0e2}
+.audit-row.new{animation:rowin .6s ease-out}
+@keyframes rowin{from{background:#ffffff14}}
+.audit-row time{font:400 10.5px/1.6 var(--mono);color:var(--dim)}
+.audit-row s{align-self:stretch;border-radius:1px;background:var(--c,#6f7894);text-decoration:none}
+.audit-row b{color:#fff;font-weight:600}
+.audit-row u{text-decoration:none;color:var(--dim)}
+.audit-empty{margin:4px;color:var(--dim);font-size:12px}
 
 /* ─────────── approval card (the tray window) */
 .appr{position:absolute;right:396px;top:72px;z-index:12;width:318px;padding:13px 14px 12px;border-radius:8px;border:1px solid #ffb45466;
@@ -241,12 +256,26 @@ a{color:var(--cyan)}
 #tip i{display:block;font:500 9px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--cyan));font-style:normal;margin-bottom:5px}
 #hint{position:absolute;left:50%;top:22px;transform:translateX(-50%);z-index:7;font-size:11.5px;color:#dfe5ee;background:#0c1120d0;border:1px solid var(--line);border-radius:6px;padding:6px 13px;white-space:nowrap;opacity:0;transition:opacity .4s;pointer-events:none}
 #hint.on{opacity:1}
-#app.ui-off .side,#app.ui-off .rp,#app.ui-off .nav,#app.ui-off .log,#app.ui-off .ctl>:not(#uitog){opacity:0;visibility:hidden;pointer-events:none}
+#app.ui-off .side,#app.ui-off .rp,#app.ui-off .nav,#app.ui-off .audit,#app.ui-off .ctl>:not(#uitog){opacity:0;visibility:hidden;pointer-events:none}
 #app.ui-off #labels{opacity:.0}
-#labels.demo .lb{opacity:.07!important;pointer-events:none}
+#labels.demo .lb{opacity:0!important;visibility:hidden;pointer-events:none}
+/* tour pins: numbered callouts that match the numbers in the caption */
+.pin{pointer-events:none;padding-bottom:18px;position:relative;opacity:0;transform:translateY(6px);transition:opacity .35s,transform .45s cubic-bezier(.2,1.4,.3,1)}
+.pin.on{opacity:1;transform:none}
+.pin>span{display:inline-flex;align-items:center;gap:6px;padding:3px 8px 3px 3px;border-radius:4px;background:#f4f7fc;color:#0b1020;font:600 11.5px/1.2 'Outfit',sans-serif;white-space:nowrap;box-shadow:0 0 0 3px #ffffff22,0 10px 24px -8px #000}
+.pin>span:not(:has(i+*)):not(:has(i ~ text)){padding-right:3px}
+.pin i{display:grid;place-items:center;width:17px;height:17px;border-radius:3px;background:#0b1020;color:#fff;font:600 10px/1 var(--mono);font-style:normal}
+.pin::before{content:"";position:absolute;left:8px;bottom:3px;width:2px;height:15px;background:linear-gradient(#f4f7fc,#f4f7fc80)}
+.pin::after{content:"";position:absolute;left:5px;bottom:0;width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 10px #fff}
+.pin.hot>span{background:var(--cyan)}
+.cap .ref{display:inline;white-space:nowrap;padding:0 1px 0 2px;border-radius:3px;color:#fff;font-weight:600;transition:background .3s,box-shadow .3s}
+.cap .ref i{display:inline-grid;place-items:center;width:15px;height:15px;margin-right:4px;border-radius:3px;background:#ffffff22;color:#fff;font:600 9.5px/1 var(--mono);font-style:normal;vertical-align:2px;transition:background .3s,color .3s}
+.cap .ref.lit{background:#ffffff14}
+.cap .ref.lit i{background:#f4f7fc;color:#0b1020}
+.cap .ref:hover{background:#7fe3ff33}
 /* tour mode: the scene and one caption, nothing else */
-#app.touring .chap,#app.touring .rp,#app.touring .log{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .4s,visibility 0s .4s}
-.chap,.rp,.log{transition:opacity .4s}
+#app.touring .chap,#app.touring .rp,#app.touring .audit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .4s,visibility 0s .4s}
+.chap,.rp,.audit{transition:opacity .4s}
 #app.touring .appr{right:22px}
 .cap{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);z-index:8;width:min(660px,calc(100% - 32px));padding:14px 18px 12px;display:flex;flex-direction:column;gap:10px}
 .cap.in{animation:capin .5s cubic-bezier(.2,.9,.3,1)}
@@ -280,13 +309,13 @@ dialog td{padding:5px 8px;border-top:1px solid #ffffff12;vertical-align:top}
 dialog td:first-child{white-space:nowrap;color:#fff}
 
 @media (max-width:1180px){
-  .rp{width:330px}.side{width:330px}.log{width:330px}.appr{right:366px}
+  .rp{width:330px}.side{width:330px}.appr{right:366px}
 }
 @media (max-width:900px){
   .side{top:14px;left:12px;right:12px;width:auto;bottom:auto;max-height:44vh}
   .brand h1 b{font-size:28px}.brand h1 span{font-size:14px}
   .chap .body{max-height:18vh}
-  .rp{display:none}.log{display:none}
+  .rp{display:none}.audit{display:none}
   .ctl{top:auto;bottom:74px;right:12px}
   .nav{left:8px;right:8px;transform:none;bottom:10px;overflow-x:auto}
   .step .t{display:none}.step{padding:0 10px}
@@ -334,7 +363,13 @@ dialog td:first-child{white-space:nowrap;color:#fff}
     <button class="arr" id="next" aria-label="Next chapter"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7z"/></svg></button>
   </nav>
 
-  <div class="card log" id="log" aria-label="Audit timeline"></div>
+  <div class="audit" id="audit">
+    <section class="card audit-panel" id="audit-panel" hidden aria-label="Audit log">
+      <h3>Audit log <em>everything this run did, as <code>lns audit</code> would show it</em><button class="x" id="audit-x" aria-label="Close">×</button></h3>
+      <div class="audit-list" id="audit-list"><p class="audit-empty">Nothing yet. Try a button in the chapter card.</p></div>
+    </section>
+    <button class="card audit-chip" id="audit-chip" aria-expanded="false"><i id="audit-dot"></i><span>Audit log</span><b id="audit-n">0</b></button>
+  </div>
 
   <section class="card cap" id="cap" hidden aria-live="polite">
     <div class="cap-top"><span id="cap-k">Tour</span><span id="cap-p"></span></div>
@@ -384,6 +419,6 @@ dialog td:first-child{white-space:nowrap;color:#fff}
   </dialog>
 </div>
 
-<script type="module" src="./app.js?v=7"></script>
+<script type="module" src="./app.js?v=12"></script>
 </body>
 </html>
