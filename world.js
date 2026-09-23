@@ -12,7 +12,7 @@ import {VerticalTiltShiftShader} from 'three/addons/shaders/VerticalTiltShiftSha
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {makeClawd} from './clawd.js?v=14';
+import {makeClawd} from './clawd.js?v=19';
 
 export {THREE, CSS2DObject};
 export const C = {
@@ -48,7 +48,7 @@ export const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.minDistance = 5;
-controls.maxDistance = 80;
+controls.maxDistance = 110;
 controls.maxPolarAngle = Math.PI * 0.47;
 controls.screenSpacePanning = true;
 
@@ -270,7 +270,29 @@ scene.add(hostGroup);
   const cam = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), glow('#2a3a55', 1));
   cam.position.set(0, SH - 0.28, 0.21);
   screen.add(lid, glass, display, cam);
-  hostGroup.add(slab, inset, lip, hinge, screen);
+  // Keyboard: black keys on the space-grey deck, low enough that the diorama still stands on top.
+  const keyMat = std('#1b1f27', {roughness: 0.75, metalness: 0.1});
+  const keyGeo = new RoundedBoxGeometry(1, 0.08, 1, 1, 0.03);
+  const cols = 14, pitch = 1.72, kx0 = -4.5 - (cols - 1) * pitch / 2, kz0 = -7.35;
+  const keys = [];
+  for (let r = 0; r < 6; r++) {
+    const depth = r === 0 ? 0.75 : 1.42, z = kz0 + (r === 0 ? 0 : 0.95 + (r - 1) * pitch);
+    for (let c = 0; c < cols; c++) {
+      if (r === 5 && c > 3 && c < 10) { if (c === 4) keys.push([kx0 + 6.5 * pitch, z, pitch * 5 + 1.42, depth]); continue; }
+      keys.push([kx0 + c * pitch, z, 1.42, depth]);
+    }
+  }
+  const keyboard = new THREE.InstancedMesh(keyGeo, keyMat, keys.length);
+  const m4 = new THREE.Matrix4();
+  keys.forEach(([x, z, sx, sz], i) => keyboard.setMatrixAt(i, m4.compose(V(x, 0.57, z), new THREE.Quaternion(), V(sx, 1, sz))));
+  keyboard.receiveShadow = true;
+  const well = new THREE.Mesh(new RoundedBoxGeometry(cols * pitch + 0.5, 0.02, 10.9, 2, 0.2), std('#1f242d', {roughness: 0.8}));
+  well.position.set(-4.5, 0.525, kz0 + 4.95);
+  well.receiveShadow = true;
+  const pad = new THREE.Mesh(new RoundedBoxGeometry(8.2, 0.03, 3.4, 2, 0.35), std('#353b47', {roughness: 0.22, metalness: 0.45}));
+  pad.position.set(-4.5, 0.53, 6.55);
+  pad.receiveShadow = true;
+  hostGroup.add(slab, inset, lip, hinge, screen, well, keyboard, pad);
   hostGroup.userData.screen = screen;
   part('host', hostGroup, {title: 'Your Mac — the host', kicker: 'the computer everything runs on', color: C.white, chapter: 'overview',
     text: 'The laptop is your computer. Everything runs locally on it: the lns CLI, the lns-service background service, your project, named volumes, caches and connector secrets. Claude Code lives only inside the glass box.'});
@@ -367,7 +389,7 @@ export const SURF = 1.86;   // top of the writable layer, where the workload's f
 
 // The workload — a little Claude Code — and the supervisor ring around it.
 export const core = new THREE.Group();
-core.position.set(-0.3, SURF + 0.72, 0.3);
+core.position.set(-1.25, SURF + 0.72, 0.1);
 vmInner.add(core);
 export const clawd = makeClawd(core);
 part('workload', core, {title: 'Claude Code — the workload', kicker: 'sh -c claude · uid 65534', color: C.orange, chapter: 'supervisor',
@@ -427,59 +449,87 @@ export const procs = {};
   vmInner.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([prev, V(-1.6, 3.0, -0.7), V(core.position.x - 0.8, core.position.y, core.position.z - 0.9)]), lm));
 }
 
-// The proxy gate: nftables redirects every workload socket here. Drawn as a checkpoint barrier across the lane.
-export const GATE = V(1.7, 3.3, 2.0);
+// The proxy gate: the only way out of the box. A big checkpoint doorway facing the viewer, with a light curtain and a barrier arm.
+export const GATE = V(2.1, 3.05, 2.0);
 export const gate = new THREE.Group();
 gate.position.set(GATE.x, 0, GATE.z);
 vmInner.add(gate);
 const lampMat = new THREE.MeshBasicMaterial({color: new THREE.Color(C.cyan).multiplyScalar(2.6), toneMapped: false});
 const arm = new THREE.Group();
 export const gateCtl = {open: 0, target: 0, shake: 0, blink: false, color: new THREE.Color(C.cyan), flashT: 0};
+const curtainMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+  uniforms: {uT: time, uC: {value: new THREE.Color(C.cyan)}, uF: {value: 0}, uB: {value: 1}},
+  vertexShader: `varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `uniform float uT; uniform vec3 uC; uniform float uF; uniform float uB; varying vec2 vU;
+    void main(){
+      float lines = smoothstep(.6, 1., sin(vU.y*90.)*.5+.5);
+      float sweep = 1. - smoothstep(0., .08, abs(fract(vU.y + uT*.45) - .5));
+      float edge = smoothstep(.42, .5, abs(vU.x-.5)) + smoothstep(.45, .5, abs(vU.y-.5));
+      float a = (.06 + lines*.06 + sweep*.22 + edge*.18 + uF*.45) * uB;
+      gl_FragColor = vec4(uC*(1.2 + uF*2.), a);
+    }`,
+});
+function signTex() {
+  return canvasTex(1024, 256, (g, W, H) => {
+    g.fillStyle = '#0a1220'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = '#7fe3ff'; g.lineWidth = 6; g.strokeRect(8, 8, W - 16, H - 16);
+    g.fillStyle = '#eaf9ff'; g.font = '800 104px "Outfit", system-ui, sans-serif'; g.textAlign = 'center';
+    g.fillText('PROXY GATE', W / 2, 128);
+    g.fillStyle = '#7fe3ff'; g.font = '500 40px "DM Mono", monospace';
+    g.fillText('every connection is checked here', W / 2, 200);
+  });
+}
 {
   const pm = std('#1d2536', {metalness: 0.7, roughness: 0.3});
-  const X0 = 1.15, armY = GATE.y - 0.05, L = 2.85;
-  const post = new THREE.Mesh(new RoundedBoxGeometry(0.55, armY - SURF + 0.55, 0.55, 2, 0.1), pm);
-  post.position.set(X0, SURF + (armY - SURF + 0.55) / 2, 0);
-  post.castShadow = true;
-  const band = new THREE.Mesh(new THREE.BoxGeometry(0.57, 0.06, 0.57), glow(C.cyan, 1.8));
-  band.position.set(X0, SURF + 0.35, 0);
-  const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.12, 20), pm);
-  lampBase.position.set(X0, armY + 0.61, 0);
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 14), lampMat);
-  lamp.position.set(X0, armY + 0.8, 0);
+  const HW = 1.4, TOP = 5.9, armY = GATE.y, L = 2.55;
+  for (const s of [-1, 1]) {
+    const p = new THREE.Mesh(new RoundedBoxGeometry(0.42, TOP - SURF, 0.5, 2, 0.08), pm);
+    p.position.set(s * HW, SURF + (TOP - SURF) / 2, 0);
+    p.castShadow = true;
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.06, TOP - SURF - 0.3, 0.52), glow(C.cyan, 2));
+    strip.position.set(s * (HW - 0.22), SURF + (TOP - SURF) / 2, 0);
+    gate.add(p, strip);
+  }
+  const beam = new THREE.Mesh(new RoundedBoxGeometry(HW * 2 + 0.7, 0.85, 0.6, 2, 0.1), pm);
+  beam.position.set(0, TOP + 0.3, 0);
+  beam.castShadow = true;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2 + 0.4, (HW * 2 + 0.4) / 4), new THREE.MeshBasicMaterial({map: signTex(), toneMapped: false, color: new THREE.Color(1.3, 1.3, 1.3)}));
+  sign.position.set(0, TOP + 0.3, 0.31);
+  const signBack = sign.clone(); signBack.rotation.y = Math.PI; signBack.position.z = -0.31;
+  const lamps = [-1, 1].map(s => { const l = new THREE.Mesh(new THREE.SphereGeometry(0.17, 18, 12), lampMat); l.position.set(s * (HW + 0.2), TOP + 0.9, 0); return l; });
+  const curtain = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2 - 0.42, TOP - SURF - 0.1), curtainMat);
+  curtain.position.set(0, SURF + (TOP - SURF) / 2, 0);
   const stripes = canvasTex(256, 16, (g, W, H) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#3fb6d6' : '#f4f8ff'; g.fillRect(i * W / 8, 0, W / 8, H); } });
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(L, 0.26, 0.2), new THREE.MeshStandardMaterial({map: stripes, roughness: 0.45, emissive: new THREE.Color('#ffffff'), emissiveMap: stripes, emissiveIntensity: 0.5}));
-  bar.position.x = -(L / 2 + 0.15);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(L, 0.26, 0.22), new THREE.MeshStandardMaterial({map: stripes, roughness: 0.45, emissive: new THREE.Color('#ffffff'), emissiveMap: stripes, emissiveIntensity: 0.5}));
+  bar.position.x = -L / 2;
   bar.castShadow = true;
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), lampMat);
-  tip.position.x = -(L + 0.15);
-  const weight = new THREE.Mesh(new RoundedBoxGeometry(0.45, 0.3, 0.3, 2, 0.06), pm);
-  weight.position.x = 0.3;
-  arm.add(bar, tip, weight);
-  arm.position.set(X0, armY, 0);
-  const rest = new THREE.Mesh(new RoundedBoxGeometry(0.22, armY - SURF - 0.05, 0.22, 2, 0.05), pm);
-  rest.position.set(X0 - L - 0.15, SURF + (armY - SURF - 0.05) / 2, 0);
-  const fork = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.34), pm);
-  fork.position.set(X0 - L - 0.15, armY - 0.12, 0);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), lampMat);
+  tip.position.x = -L;
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.34, 20), pm);
+  hub.rotation.x = Math.PI / 2;
+  arm.add(bar, tip, hub);
+  arm.position.set(HW - 0.1, armY, 0.3);
   const laneMat = new THREE.MeshBasicMaterial({color: new THREE.Color(C.cyan).multiplyScalar(0.5), transparent: true, opacity: 0.16, depthWrite: false});
-  const laneIn = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 2.2), laneMat);
+  const laneIn = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.9), laneMat);
   laneIn.rotation.x = -Math.PI / 2;
-  laneIn.position.set(0, SURF + 0.07, -0.25);
-  const laneOut = new THREE.Mesh(new THREE.PlaneGeometry(VM.w / 2 - GATE.x + 0.45, 0.9), laneMat);
+  laneIn.position.set(0, SURF + 0.07, -0.95);
+  const laneOut = new THREE.Mesh(new THREE.PlaneGeometry(VM.w / 2 - GATE.x + 0.5, 0.9), laneMat);
   laneOut.rotation.x = -Math.PI / 2;
-  laneOut.position.set((VM.w / 2 - GATE.x - 0.45) / 2, SURF + 0.07, 0.85);
-  const stop = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.12), new THREE.MeshBasicMaterial({color: new THREE.Color('#eef2fa').multiplyScalar(1.4), toneMapped: false, transparent: true, opacity: 0.7, depthWrite: false}));
+  laneOut.position.set((VM.w / 2 - GATE.x - 0.5) / 2, SURF + 0.07, 0.85);
+  const stop = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2 - 0.4, 0.12), new THREE.MeshBasicMaterial({color: new THREE.Color('#eef2fa').multiplyScalar(1.4), toneMapped: false, transparent: true, opacity: 0.7, depthWrite: false}));
   stop.rotation.x = -Math.PI / 2;
-  stop.position.set(0, SURF + 0.08, -0.4);
-  gate.add(post, band, lampBase, lamp, arm, rest, fork, laneIn, laneOut, stop);
-  gate.userData.lamp = lamp;
+  stop.position.set(0, SURF + 0.08, -0.35);
+  gate.add(beam, sign, signBack, ...lamps, curtain, arm, laneIn, laneOut, stop);
   gateCtl.update = (dt, t) => {
     gateCtl.open += (gateCtl.target - gateCtl.open) * Math.min(1, dt * 6);
     gateCtl.shake = Math.max(0, gateCtl.shake - dt * 1.6);
-    arm.rotation.z = -Math.PI / 2 * 0.92 * gateCtl.open + Math.sin(t * 38) * 0.06 * gateCtl.shake;
+    arm.rotation.z = -Math.PI / 2 * 0.9 * gateCtl.open + Math.sin(t * 38) * 0.06 * gateCtl.shake;
     gateCtl.flashT = Math.max(0, gateCtl.flashT - dt * 0.7);
     const on = gateCtl.blink ? (Math.sin(t * 9) > 0 ? 1 : 0.25) : 1;
     lampMat.color.copy(gateCtl.color).multiplyScalar((1.6 + gateCtl.flashT * 2.2) * on);
+    curtainMat.uniforms.uC.value.copy(gateCtl.color);
+    curtainMat.uniforms.uF.value = gateCtl.flashT * on + (gateCtl.blink ? 0.35 * on : 0);
     if (!gateCtl.blink && gateCtl.flashT <= 0) gateCtl.color.lerp(new THREE.Color(C.cyan), Math.min(1, dt * 2));
   };
   gateCtl.signal = (hex, blink = false) => { gateCtl.color.set(hex); gateCtl.blink = blink; gateCtl.flashT = blink ? 0 : 1; };
@@ -487,8 +537,7 @@ export const gateCtl = {open: 0, target: 0, shake: 0, blink: false, color: new T
   gateCtl.lower = () => { gateCtl.target = 0; };
   gateCtl.refuse = () => { gateCtl.shake = 1; };
   part('gate', gate, {title: 'The proxy gate', kicker: 'lns-supervisor · :3128 :3129 · DNS :5355', color: C.cyan, chapter: 'network',
-    text: 'A checkpoint on the only lane out. nftables sends every TCP connection the workload opens to the supervisor’s proxy (transparent :3129, or :3128 via HTTPS_PROXY) and every DNS query to its stub on :5355. The proxy reads the host name, checks it against the rules, and lifts the barrier, keeps it down, or holds the request and asks you.'});
-  label('proxy gate', {kicker: 'nftables → :3128/:3129 · dns :5355', color: C.cyan, at: V(X0, armY + 1.15, 0), parent: gate, part: 'gate'});
+    text: 'The only way out of the box. nftables sends every TCP connection the workload opens to the supervisor’s proxy (transparent :3129, or :3128 via HTTPS_PROXY) and every DNS query to its stub on :5355. The proxy reads the host name, checks it against the rules, and lifts the barrier, keeps it down, or holds the request and asks you.'});
 }
 export const gateScanMat = {uniforms: {uF: {value: 0}, uC: {value: new THREE.Color()}}};
 
@@ -709,7 +758,7 @@ scene.add(gitfile);
 }
 
 export const browser = new THREE.Group();
-browser.position.set(-5.2, HOST_TOP, 6.5);
+browser.position.set(-14.6, HOST_TOP, 6.3);
 scene.add(browser);
 {
   const fr = new THREE.Mesh(new RoundedBoxGeometry(2.2, 1.4, 0.1, 2, 0.05), std('#161d2b', {metalness: 0.5}));
@@ -835,7 +884,7 @@ pipe('vault', [at(vault, -0.9, 1.0, 0), at(vault, -1.9, 1.6, 0.3), at(svc, 0.5, 
 pipe('ws', [at(folder, 1.15, 1.0, -0.2), V(-6.1, 2.6, -1.4), SOCK.ws.clone().add(V(-0.2, 0, 0))], C.teal, {r: 0.1});
 pipe('data', [at(disk, 0.95, 0.6, 0), V(-6.3, 2.4, 2.2), SOCK.data.clone().add(V(-0.2, 0, 0))], C.blue, {r: 0.1});
 pipe('content', [at(cache, 0.95, 0.9, 0.3), V(-10.4, 1.1, 5.0), V(-6.0, 1.1, 4.0), V(-VM.w / 2, 1.25, 2.9)], C.violet, {r: 0.06, base: 0.1});
-pipe('port', [at(browser, -0.3, 1.3, -0.4), V(-7.2, 3.4, 1.4), at(svc, 0, 1.9, 0.95)], C.cyan, {r: 0.05, base: 0.08});
+pipe('port', [at(browser, 0.3, 1.3, -0.4), V(-12.4, 3.2, 0.6), at(svc, 0, 1.9, 0.95)], C.cyan, {r: 0.05, base: 0.08});
 pipe('net', [NIC.clone().add(V(0.2, 0, 0)), V(6.0, 2.6, 0), V(7.0, HOST_TOP + 0.7, 0)], C.cyan, {r: 0.09});
 for (const [k, d] of Object.entries(DEST)) {
   const a = V(8.3, HOST_TOP + 0.5, 0);

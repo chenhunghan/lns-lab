@@ -3,7 +3,7 @@ import {
   parts, pickables, allLabels, label, vm, vmInner, shell, shellMat, shellEdges, layers, core, clawd, ring, procs, gate,
   gateScanMat, gateCtl, hostGroup, HOST_SCREEN_PIN, GATE, NIC, nic, VSOCK, vsock, SOCK, socks, plates, shelf, cli, setCliScreen, svc, vault, keyObj, cache,
   folder, disk, diskFill, gitfile, browser, nat, DEST, pipes, glow, vmLight, coreLight, SURF, VM, vmLabel, HOST_TOP,
-} from './world.js?v=17';
+} from './world.js?v=24';
 
 // ─────────────────────────────────────────────────────────────── small helpers
 const $ = s => document.querySelector(s);
@@ -233,7 +233,7 @@ const gateKey = keyObj.clone();
 gateKey.scale.setScalar(1.1);
 gateKey.visible = false;
 scene.add(gateKey);
-const GATE_KEY_POS = V(GATE.x + 1.15, SURF + 3.1, GATE.z);
+const GATE_KEY_POS = V(GATE.x + 1.6, 7.3, GATE.z);
 
 // A second sandbox for the "volume in use" demo.
 const ghost = new THREE.Group();
@@ -245,7 +245,7 @@ const ghost = new THREE.Group();
   const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({color: '#2a1606', emissive: new THREE.Color(C.orange), emissiveIntensity: 1.2}));
   c2.position.y = 1.4;
   ghost.add(ped, s, c2);
-  ghost.position.set(0.5, HOST_TOP, 6.4);
+  ghost.position.set(3.4, HOST_TOP, 6.4);
   ghost.visible = false;
   ghost.userData.mat = s.material;
   scene.add(ghost);
@@ -558,9 +558,9 @@ async function relaunch(why, {pace} = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────── the network path
-const HOLD_AT = () => GATE.clone().add(V(0, 0, -0.55));
-const W2G = () => new THREE.CatmullRomCurve3([coreP.clone(), V(GATE.x - 0.2, 3.55, 0.9), HOLD_AT()], false, 'catmullrom', 0.4);
-const G2N = () => new THREE.CatmullRomCurve3([HOLD_AT(), V(GATE.x, 3.3, GATE.z + 0.55), V(GATE.x + 0.9, 3.3, NIC.z), NIC.clone()], false, 'catmullrom', 0.3);
+const HOLD_AT = () => GATE.clone().add(V(0, 0, -0.6));
+const W2G = () => new THREE.CatmullRomCurve3([coreP.clone(), V((coreP.x + GATE.x) / 2, 3.45, 0.7), HOLD_AT()], false, 'catmullrom', 0.4);
+const G2N = () => new THREE.CatmullRomCurve3([HOLD_AT(), V(GATE.x, GATE.y, GATE.z + 0.6), V(GATE.x + 0.9, 3.2, NIC.z), NIC.clone()], false, 'catmullrom', 0.3);
 let hopTimer;
 function hop(i) { S.hop = i; if (current.id === 'network') refreshPanel(); clearTimeout(hopTimer); if (i >= 0) hopTimer = setTimeout(() => { S.hop = -1; if (current.id === 'network') refreshPanel(); }, 6000); }
 function flashGate(color) { gateCtl.signal(color); }
@@ -1358,10 +1358,31 @@ CH.forEach((c, i) => {
   steps.appendChild(b);
 });
 let camTween = null;
+// The whole diorama: laptop deck and screen, the cube, and the towers on the right.
+const SCENE_PTS = [V(-19, -0.5, 9), V(10, -0.5, 9), V(-19, 17.4, -11.4), V(10, 17.4, -11.4), V(17.5, 0, 10.5), V(17.5, 6, -7)];
+const CHAPTER_FIT = {
+  supervisor: () => [cli, svc, ...VMBOX],
+  mounts: () => [folder, cache, ...VMBOX],
+  volumes: () => [folder, disk, ...VMBOX],
+  filesets: () => [cache, gitfile, ...VMBOX],
+  network: () => [...VMBOX, nat, ...Object.values(DEST).map(d => d.group)],
+  policy: () => [...VMBOX, nat],
+  connector: () => [vault, svc, ...VMBOX],
+  mixin: () => [...LAYERS.map(L => L.g), ...VMBOX],
+};
 function camFor(c) {
   const [p, t] = c.cam;
   const k = clamp(0.84 / camera.aspect, 1, 2.1);
-  return [t.clone().add(p.clone().sub(t).multiplyScalar(k)), t];
+  const dir = p.clone().sub(t);
+  const pts = c.id === 'overview' ? SCENE_PTS : CHAPTER_FIT[c.id]?.().map(wp);
+  if (pts) {
+    const box = new THREE.Box3().setFromPoints(pts);
+    const ctr = box.getCenter(new THREE.Vector3());
+    const r = box.getSize(new THREE.Vector3()).length() / 2 * (c.id === 'overview' ? 0.72 : 0.7);
+    const d = Math.max(dir.length() * k, fitDist(r) * 1.02);
+    return [ctr.clone().add(dir.normalize().multiplyScalar(d)), ctr];
+  }
+  return [t.clone().add(dir.multiplyScalar(k)), t];
 }
 function flyTo(pos, tgt, dur = 1.7) {
   const p0 = camera.position.clone(), t0 = controls.target.clone();
@@ -1392,7 +1413,7 @@ function fitDist(r) {
   const free = narrow || touring ? 0.92 : Math.max(0.35, (innerWidth - 780) / innerWidth);
   const hf = Math.atan(Math.tan(vf) * camera.aspect * free);
   const vfe = narrow ? Math.atan(Math.tan(vf) * 0.5) : Math.atan(Math.tan(vf) * 0.82);
-  return clamp(r / Math.tan(Math.min(hf, vfe)) * 1.08, 7, 70);
+  return clamp(r / Math.tan(Math.min(hf, vfe)) * 1.08, 7, 95);
 }
 function stage(pts, minR = 2.6) {
   if (!demoN && !touring) return;
@@ -1403,7 +1424,7 @@ function stage(pts, minR = 2.6) {
   const dir = cp.clone().sub(ct).normalize();
   flyTo(c.clone().add(dir.multiplyScalar(fitDist(r))), c, 1.1);
 }
-const VMFOCUS = () => [core.position.clone().add(V(-1.3, 1.4, 0.6)), GATE.clone().add(V(0, 1.4, 0)), NIC.clone().add(V(0.6, -1.2, 0))];
+const VMFOCUS = () => [core.position.clone().add(V(-1.3, 1.4, 0.6)), GATE.clone().add(V(0, 3.6, 0)), NIC.clone().add(V(0.6, -1.2, 0))];
 const VMBOX = [V(-VM.w / 2, VM.floor, -VM.d / 2), V(VM.w / 2, VM.top, VM.d / 2)];
 let labelsOn = true;
 function applyLabels() {
@@ -1459,7 +1480,7 @@ const TOUR = [
   {ch: 'overview', say: 'This giant [[laptop|host]] stands for your computer.'},
   {ch: 'overview', say: 'The [[glass box|shell]] on it is a sandbox: a small, separate computer called a microVM.', focus: () => VMBOX, r: 5},
   {ch: 'overview', say: 'Inside the box lives [[Claude Code|workload]], an AI agent we want to keep contained.', focus: () => [core], r: 3.4},
-  {ch: 'overview', say: 'The [[gate|gate]] on the box’s wall is the only way out to the internet.', focus: () => [gate, nic], r: 3.6},
+  {ch: 'overview', say: 'The [[proxy gate|gate]] is the only door out of the box. Every connection is checked there.', focus: () => [gate, nic, core], r: 4},
   {ch: 'overview', say: 'These [[towers|dest-*]] are websites that Claude might try to reach.', focus: () => [nat, ...towers()], r: 5},
   {ch: 'overview', say: 'Watch Claude ask its AI model a question, through the [[gate|gate]].', run: () => request('claude', {cmd: 'claude -p "fix the tests"'}), hold: 2.5},
   {ch: 'supervisor', say: 'Now let’s watch the sandbox start up, one step at a time.', focus: () => [cli, svc, ...VMBOX], hold: 3.5},
@@ -1490,7 +1511,7 @@ const capEl = $('#cap');
 // Pins: each [[term|part]] in a caption gets a number, and the same number points at the object in the scene.
 const PIN_ANCHOR = {
   host: () => HOST_SCREEN_PIN.clone(),
-  gate: () => V(GATE.x + 1.15, SURF + 2.75, GATE.z),
+  gate: () => V(GATE.x - 1.4, 7.05, GATE.z),
   workload: () => core.position.clone().add(V(-1.25, 0.55, 0.2)),
   kernel: () => V(VM.w / 2 - 0.9, 1.05, VM.d / 2 - 0.2),
   image2: () => V(-VM.w / 2 + 0.7, 1.55, VM.d / 2 - 0.2),
